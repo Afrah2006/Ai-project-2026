@@ -138,9 +138,9 @@ class Schedule:
     def nurses_on_shift(self, day: int, shift: str) -> List[Nurse]: # Return all Nurse objects assigned to "shift" on "day"
         
         return [
-            self._nurse_by_id[nid]
+            self.nurse_by_id[nid]
             for nid in self._nurse_by_id
-            if self._grid[(day, nid)] == shift
+            if self.grid[(day, nid)] == shift
         ]
 
     #statistics :
@@ -156,14 +156,14 @@ class Schedule:
         "Return the number of night shifts ('N') assigned to nurse_id"
         return sum(
             1 for day in range(1, NUM_DAYS + 1)
-            if self._grid[(day, nurse_id)] == 'N'
+            if self.grid[(day, nurse_id)] == 'N'
         )
 
     def working_days(self, nurse_id: int) -> List[int]:
         "Return list of days (1-28) on which nurse_id is on a working shift"
         return [
             day for day in range(1, NUM_DAYS + 1)
-            if self._grid[(day, nurse_id)] in WORKING_SHIFTS
+            if self.grid[(day, nurse_id)] in WORKING_SHIFTS
         ]
 
     
