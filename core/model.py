@@ -28,7 +28,7 @@ class Nurse:
     day_off1:   int                
     day_off2:   int                
 
- 
+
 
     @property
     def is_senior(self) -> bool:
