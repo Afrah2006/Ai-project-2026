@@ -66,6 +66,8 @@ WEIGHTS = {
     'consec_night':   10,
     'night_variance':  5,
     'hours_variance':  2,
+    'reward_day_off_first': 10,
+    'reward_day_off_second': 4
 }
 
 DAY_OFF_PRIORITY = {

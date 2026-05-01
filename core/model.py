@@ -133,13 +133,13 @@ class Schedule:
 
     def get_day_assignments(self, day: int) -> Dict[int, str]:
        "this will return the assignment of 1 day as  a dict[key=nurseId, value= shift_type ] "
-        return {nid: self.grid[(day, nid)] for nid in self.nurse_by_id}
+       return {nid: self.grid[(day, nid)] for nid in self.nurse_by_id}
 
     def nurses_on_shift(self, day: int, shift: str) -> List[Nurse]: # Return all Nurse objects assigned to "shift" on "day"
         
         return [
             self.nurse_by_id[nid]
-            for nid in self._nurse_by_id
+            for nid in self.nurse_by_id
             if self.grid[(day, nid)] == shift
         ]
 
