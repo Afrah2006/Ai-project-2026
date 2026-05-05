@@ -46,16 +46,16 @@ FORBIDDEN_TRANSITIONS = {
 }
 
 COVERAGE = {
-    'D': {'required': 8, 'min_senior': 1},
-    'L': {'required': 8, 'min_senior': 1},
-    'N': {'required': 6, 'min_senior': 1},
+    'D': {'required': 7, 'min_senior': 1},
+    'L': {'required': 7, 'min_senior': 1},
+    'N': {'required': 4, 'min_senior': 1},
 }
 
 HARD = {
     'max_consecutive_work_days':   5,
     'max_consecutive_rest_days':   3,
-    'max_monthly_hours':         160,
-    'min_monthly_hours':          80,
+    'max_monthly_hours':         170,
+    'min_monthly_hours':          120,
     'max_consecutive_night_shifts': 2,
     'one_shift_per_day':          True,
 }
