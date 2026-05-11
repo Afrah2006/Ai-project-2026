@@ -4,7 +4,8 @@ import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Github, Linkedin, Mail } from "lucide-react";
+import { Mail } from "lucide-react";
+import { GitHubLogoIcon, LinkedInLogoIcon } from "@radix-ui/react-icons";
 
 const teamMembers = [
   {
@@ -83,14 +84,14 @@ export function TeamSection() {
                       className="p-2 rounded-lg bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
                       aria-label="GitHub"
                     >
-                      <Github className="size-4" />
+                      <GitHubLogoIcon className="size-4" />
                     </a>
                     <a
                       href="#"
                       className="p-2 rounded-lg bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
                       aria-label="LinkedIn"
                     >
-                      <Linkedin className="size-4" />
+                      <LinkedInLogoIcon className="size-4" />
                     </a>
                     <a
                       href="#"
