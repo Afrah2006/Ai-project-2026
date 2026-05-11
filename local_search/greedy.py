@@ -78,7 +78,9 @@ def generate_greedy_schedule(schedule: Schedule) -> Schedule:
                 if st == 'N' and day > 1 and schedule.get(day - 1, n.nurse_id) == 'N':
                     nights = 1
 
-                return (forced, requested_off, hours, work_streak, nights)
+                senior_penalty = 1 if n.is_senior else 0
+
+                return (forced, requested_off, senior_penalty, hours, work_streak, nights)
 
             candidates.sort(key=score_nurse)
 
