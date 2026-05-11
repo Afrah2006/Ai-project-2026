@@ -1,5 +1,5 @@
-import { Activity, GitHubLogoIcon } from "@radix-ui/react-icons";
-import { ExternalLink } from "lucide-react";
+import { GitHubLogoIcon } from "@radix-ui/react-icons";
+import { Activity } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 export function Footer() {
