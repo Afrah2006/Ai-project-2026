@@ -1,4 +1,5 @@
-import { Activity, Github } from "lucide-react";
+import { Activity, GitHubLogoIcon } from "@radix-ui/react-icons";
+import { ExternalLink } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 export function Footer() {
@@ -50,7 +51,7 @@ export function Footer() {
             rel="noopener noreferrer"
             className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
           >
-            <Github className="size-4" />
+            <GitHubLogoIcon className="size-4" />
             <span>View on GitHub</span>
           </a>
         </div>
