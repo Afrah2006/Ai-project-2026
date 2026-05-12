@@ -41,7 +41,7 @@ export function Hero() {
           transition={{ duration: 0.6, delay: 0.2 }}
           className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto mb-12 text-pretty"
         >
-          An AI-powered system using Genetic Algorithms and Constraint Satisfaction 
+          An AI-powered system using Constraint Satisfaction and local search algorithms
           to optimize hospital nurse scheduling while balancing staff preferences 
           with operational requirements.
         </motion.p>
@@ -57,7 +57,7 @@ export function Hero() {
               <Users className="text-primary" />
             </div>
             <div className="text-left">
-              <p className="text-2xl font-bold text-foreground">31</p>
+              <p className="text-2xl font-bold text-foreground">25</p>
               <p className="text-sm text-muted-foreground">Nurses</p>
             </div>
           </div>
@@ -66,7 +66,7 @@ export function Hero() {
               <Calendar className="text-primary" />
             </div>
             <div className="text-left">
-              <p className="text-2xl font-bold text-foreground">30</p>
+              <p className="text-2xl font-bold text-foreground">28</p>
               <p className="text-sm text-muted-foreground">Days</p>
             </div>
           </div>
@@ -75,7 +75,7 @@ export function Hero() {
               <Brain className="text-primary" />
             </div>
             <div className="text-left">
-              <p className="text-2xl font-bold text-foreground">GA + CSP</p>
+              <p className="text-2xl font-bold text-foreground">Local search + CSP</p>
               <p className="text-sm text-muted-foreground">Hybrid AI</p>
             </div>
           </div>
