@@ -1,35 +1,130 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useSchedule } from "@/lib/schedule-context";
 import {
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
+  Legend,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
+  LineChart,
+  Line,
 } from "recharts";
 
-// Simulated convergence data
-const convergenceData = Array.from({ length: 50 }, (_, i) => ({
-  generation: (i + 1) * 10,
-  fitness: Math.round(1000 - 800 * Math.exp(-i / 15) + Math.random() * 20),
-  violations: Math.max(0, Math.round(50 - i * 1.1 + Math.random() * 3)),
-}));
-
-// Shift distribution data
-const shiftDistribution = [
-  { name: "Morning", count: 280, fill: "hsl(var(--chart-1))" },
-  { name: "Afternoon", count: 265, fill: "hsl(var(--chart-2))" },
-  { name: "Night", count: 175, fill: "hsl(var(--chart-3))" },
-  { name: "Off", count: 210, fill: "hsl(var(--chart-4))" },
-];
-
 export function ResultsSection() {
+  const { results, selectedResult, setSelectedResult } = useSchedule();
+
+  // Prepare comparison data
+  const comparisonData = results.map((r) => ({
+    name: r.algorithm.replace(" (Modified)", ""),
+    score: r.score,
+    hardViolations: r.hardViolations,
+    softViolations: r.softViolations,
+    time: Math.round(r.executionTime),
+  }));
+
+  // Radar chart data for algorithm comparison
+  const radarData = results.length > 0
+    ? [
+        {
+          metric: "Score",
+          ...Object.fromEntries(results.map((r) => [r.algorithm, r.score / 10])),
+        },
+        {
+          metric: "Speed",
+          ...Object.fromEntries(results.map((r) => [r.algorithm, Math.max(0, 100 - r.executionTime / 10)])),
+        },
+        {
+          metric: "Hard Constraints",
+          ...Object.fromEntries(results.map((r) => [r.algorithm, Math.max(0, 100 - r.hardViolations * 10)])),
+        },
+        {
+          metric: "Soft Constraints",
+          ...Object.fromEntries(results.map((r) => [r.algorithm, Math.max(0, 100 - r.softViolations * 5)])),
+        },
+        {
+          metric: "Fairness",
+          ...Object.fromEntries(results.map((r) => {
+            const avg = r.hoursPerNurse.reduce((a, b) => a + b, 0) / r.hoursPerNurse.length;
+            const variance = r.hoursPerNurse.reduce((acc, h) => acc + Math.pow(h - avg, 2), 0) / r.hoursPerNurse.length;
+            return [r.algorithm, Math.max(0, 100 - variance / 10)];
+          })),
+        },
+      ]
+    : [];
+
+  // Hours distribution for selected result
+  const hoursData = selectedResult
+    ? selectedResult.hoursPerNurse.map((hours, i) => ({
+        nurse: `N${i + 1}`,
+        hours,
+        nights: selectedResult.nightShiftsPerNurse[i] * 8,
+      }))
+    : [];
+
+  // Night shifts fairness data
+  const nightsData = selectedResult
+    ? selectedResult.nightShiftsPerNurse.map((nights, i) => ({
+        nurse: `N${i + 1}`,
+        nights,
+      }))
+    : [];
+
+  const algorithmColors: Record<string, string> = {
+    "Simulated Annealing": "#22c55e",
+    "Tabu Search": "#3b82f6",
+    "Greedy": "#f59e0b",
+    "CSP": "#8b5cf6",
+  };
+
+  if (results.length === 0) {
+    return (
+      <section id="results" className="py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
+              Results & Comparison
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Run algorithms in the Schedule Generator section above to see results and comparisons
+            </p>
+          </motion.div>
+
+          <Card className="bg-card border-border border-dashed">
+            <CardContent className="py-16 text-center">
+              <div className="inline-flex items-center justify-center size-16 rounded-full bg-primary/10 mb-4">
+                <svg className="size-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-foreground mb-2">No Results Yet</h3>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                Generate schedules using the algorithms above to see performance comparisons and fairness charts.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section id="results" className="py-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -41,188 +136,361 @@ export function ResultsSection() {
           className="text-center mb-16"
         >
           <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-            Results & Performance
+            Results & Algorithm Comparison
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Analyzing the optimization process and final schedule quality
+            Analyzing performance metrics and fairness across all algorithms
           </p>
         </motion.div>
 
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Convergence Chart */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <Card className="bg-card border-border h-full">
-              <CardHeader>
-                <CardTitle className="text-foreground">
-                  Fitness Convergence
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={convergenceData}>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="hsl(var(--border))"
-                      />
-                      <XAxis
-                        dataKey="generation"
-                        stroke="hsl(var(--muted-foreground))"
-                        fontSize={12}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <YAxis
-                        stroke="hsl(var(--muted-foreground))"
-                        fontSize={12}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "hsl(var(--card))",
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: "8px",
-                          color: "hsl(var(--foreground))",
-                        }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="fitness"
-                        stroke="hsl(var(--primary))"
-                        strokeWidth={2}
-                        dot={false}
-                        name="Fitness Score"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-                <p className="text-sm text-muted-foreground mt-4">
-                  The fitness score improves rapidly in early generations and 
-                  converges to an optimal solution around generation 300.
-                </p>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Shift Distribution */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <Card className="bg-card border-border h-full">
-              <CardHeader>
-                <CardTitle className="text-foreground">
-                  Shift Distribution
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={shiftDistribution}>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="hsl(var(--border))"
-                      />
-                      <XAxis
-                        dataKey="name"
-                        stroke="hsl(var(--muted-foreground))"
-                        fontSize={12}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <YAxis
-                        stroke="hsl(var(--muted-foreground))"
-                        fontSize={12}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "hsl(var(--card))",
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: "8px",
-                          color: "hsl(var(--foreground))",
-                        }}
-                      />
-                      <Bar
-                        dataKey="count"
-                        radius={[4, 4, 0, 0]}
-                        name="Assignments"
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                <p className="text-sm text-muted-foreground mt-4">
-                  Balanced distribution of shifts with slightly fewer night 
-                  shifts as per staff preferences.
-                </p>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-
-        {/* Key Metrics */}
+        {/* Algorithm Result Cards */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="mt-8"
+          transition={{ duration: 0.6, delay: 0.1 }}
+          className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
         >
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-foreground">Key Performance Metrics</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="p-4 rounded-lg bg-secondary/50 border border-border">
-                  <p className="text-sm text-muted-foreground mb-1">
-                    Convergence Time
-                  </p>
-                  <p className="text-2xl font-bold text-foreground">~2.3s</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    500 generations
-                  </p>
+          {results.map((result) => (
+            <Card
+              key={result.algorithm}
+              className={`bg-card border-2 cursor-pointer transition-all hover:scale-[1.02] ${
+                selectedResult?.algorithm === result.algorithm
+                  ? "border-primary shadow-lg shadow-primary/20"
+                  : "border-border"
+              }`}
+              onClick={() => setSelectedResult(result)}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <Badge
+                    style={{ backgroundColor: algorithmColors[result.algorithm.replace(" (Modified)", "")] || "#666" }}
+                    className="text-white"
+                  >
+                    {result.algorithm}
+                  </Badge>
                 </div>
-                <div className="p-4 rounded-lg bg-secondary/50 border border-border">
-                  <p className="text-sm text-muted-foreground mb-1">
-                    Final Fitness
-                  </p>
-                  <p className="text-2xl font-bold text-primary">985</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Out of 1000 max
-                  </p>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Score</span>
+                    <span className="text-lg font-bold text-primary">{result.score}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Hard Violations</span>
+                    <span className="text-sm font-medium text-destructive">{result.hardViolations}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Soft Violations</span>
+                    <span className="text-sm font-medium text-amber-400">{result.softViolations}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Time</span>
+                    <span className="text-sm font-medium text-foreground">{result.executionTime.toFixed(1)}ms</span>
+                  </div>
                 </div>
-                <div className="p-4 rounded-lg bg-secondary/50 border border-border">
-                  <p className="text-sm text-muted-foreground mb-1">
-                    Hard Violations
-                  </p>
-                  <p className="text-2xl font-bold text-foreground">0</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    All constraints met
-                  </p>
-                </div>
-                <div className="p-4 rounded-lg bg-secondary/50 border border-border">
-                  <p className="text-sm text-muted-foreground mb-1">
-                    Soft Violations
-                  </p>
-                  <p className="text-2xl font-bold text-foreground">3</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Minor preference misses
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          ))}
         </motion.div>
+
+        {/* Comparison Charts */}
+        {results.length > 1 && (
+          <div className="grid lg:grid-cols-2 gap-8 mb-8">
+            {/* Score Comparison Bar Chart */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+            >
+              <Card className="bg-card border-border h-full">
+                <CardHeader>
+                  <CardTitle className="text-foreground">Score Comparison</CardTitle>
+                  <CardDescription>Higher scores indicate better optimization</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={comparisonData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis
+                          dataKey="name"
+                          stroke="hsl(var(--foreground))"
+                          fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <YAxis
+                          stroke="hsl(var(--foreground))"
+                          fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "8px",
+                            color: "hsl(var(--foreground))",
+                          }}
+                          labelStyle={{ color: "hsl(var(--foreground))" }}
+                        />
+                        <Bar dataKey="score" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Score" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Radar Chart for Multi-dimensional Comparison */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+            >
+              <Card className="bg-card border-border h-full">
+                <CardHeader>
+                  <CardTitle className="text-foreground">Algorithm Performance Radar</CardTitle>
+                  <CardDescription>Multi-dimensional comparison across metrics</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RadarChart data={radarData}>
+                        <PolarGrid stroke="hsl(var(--border))" />
+                        <PolarAngleAxis
+                          dataKey="metric"
+                          tick={{ fill: "hsl(var(--foreground))", fontSize: 11 }}
+                        />
+                        <PolarRadiusAxis
+                          angle={30}
+                          domain={[0, 100]}
+                          tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
+                        />
+                        {results.map((result) => (
+                          <Radar
+                            key={result.algorithm}
+                            name={result.algorithm}
+                            dataKey={result.algorithm}
+                            stroke={algorithmColors[result.algorithm.replace(" (Modified)", "")] || "#666"}
+                            fill={algorithmColors[result.algorithm.replace(" (Modified)", "")] || "#666"}
+                            fillOpacity={0.2}
+                          />
+                        ))}
+                        <Legend
+                          wrapperStyle={{ color: "hsl(var(--foreground))" }}
+                          formatter={(value) => <span style={{ color: "hsl(var(--foreground))" }}>{value}</span>}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "8px",
+                            color: "hsl(var(--foreground))",
+                          }}
+                          labelStyle={{ color: "hsl(var(--foreground))" }}
+                        />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Fairness Charts for Selected Result */}
+        {selectedResult && (
+          <>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="mb-6"
+            >
+              <h3 className="text-2xl font-bold text-foreground mb-2">
+                Fairness Charts - {selectedResult.algorithm}
+              </h3>
+              <p className="text-muted-foreground">
+                Visualizing workload distribution across all 25 nurses
+              </p>
+            </motion.div>
+
+            <div className="grid lg:grid-cols-2 gap-8 mb-8">
+              {/* Hours Worked Per Nurse */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6 }}
+              >
+                <Card className="bg-card border-border h-full">
+                  <CardHeader>
+                    <CardTitle className="text-foreground">Hours Worked Per Nurse</CardTitle>
+                    <CardDescription>Target: 80-160 hours per month, balanced distribution</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[350px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={hoursData} layout="vertical">
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis
+                            type="number"
+                            stroke="hsl(var(--foreground))"
+                            fontSize={12}
+                            tickLine={false}
+                            axisLine={false}
+                            domain={[0, 180]}
+                          />
+                          <YAxis
+                            dataKey="nurse"
+                            type="category"
+                            stroke="hsl(var(--foreground))"
+                            fontSize={10}
+                            tickLine={false}
+                            axisLine={false}
+                            width={35}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "hsl(var(--card))",
+                              border: "1px solid hsl(var(--border))",
+                              borderRadius: "8px",
+                              color: "hsl(var(--foreground))",
+                            }}
+                            labelStyle={{ color: "hsl(var(--foreground))" }}
+                          />
+                          <Bar dataKey="hours" fill="#22c55e" radius={[0, 4, 4, 0]} name="Total Hours" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="mt-4 flex items-center justify-center gap-6 text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="size-3 rounded bg-green-500" />
+                        <span className="text-foreground">Hours Worked</span>
+                      </div>
+                      <div className="text-muted-foreground">
+                        Avg: {Math.round(hoursData.reduce((a, b) => a + b.hours, 0) / hoursData.length)}h
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+
+              {/* Night Shifts Distribution */}
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6 }}
+              >
+                <Card className="bg-card border-border h-full">
+                  <CardHeader>
+                    <CardTitle className="text-foreground">Night Shifts Per Nurse</CardTitle>
+                    <CardDescription>Equal distribution of night shifts for fairness</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[350px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={nightsData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis
+                            dataKey="nurse"
+                            stroke="hsl(var(--foreground))"
+                            fontSize={10}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <YAxis
+                            stroke="hsl(var(--foreground))"
+                            fontSize={12}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "hsl(var(--card))",
+                              border: "1px solid hsl(var(--border))",
+                              borderRadius: "8px",
+                              color: "hsl(var(--foreground))",
+                            }}
+                            labelStyle={{ color: "hsl(var(--foreground))" }}
+                          />
+                          <Bar dataKey="nights" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Night Shifts" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="mt-4 flex items-center justify-center gap-6 text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="size-3 rounded bg-violet-500" />
+                        <span className="text-foreground">Night Shifts</span>
+                      </div>
+                      <div className="text-muted-foreground">
+                        Avg: {(nightsData.reduce((a, b) => a + b.nights, 0) / nightsData.length).toFixed(1)}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </div>
+
+            {/* Execution Time Comparison */}
+            {results.length > 1 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6 }}
+              >
+                <Card className="bg-card border-border">
+                  <CardHeader>
+                    <CardTitle className="text-foreground">Execution Time Comparison</CardTitle>
+                    <CardDescription>Time taken by each algorithm to generate a schedule (in milliseconds)</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[200px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={comparisonData} layout="vertical">
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis
+                            type="number"
+                            stroke="hsl(var(--foreground))"
+                            fontSize={12}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <YAxis
+                            dataKey="name"
+                            type="category"
+                            stroke="hsl(var(--foreground))"
+                            fontSize={12}
+                            tickLine={false}
+                            axisLine={false}
+                            width={130}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "hsl(var(--card))",
+                              border: "1px solid hsl(var(--border))",
+                              borderRadius: "8px",
+                              color: "hsl(var(--foreground))",
+                            }}
+                            labelStyle={{ color: "hsl(var(--foreground))" }}
+                            formatter={(value) => [`${value}ms`, "Execution Time"]}
+                          />
+                          <Bar dataKey="time" fill="#f59e0b" radius={[0, 4, 4, 0]} name="Time (ms)" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </>
+        )}
       </div>
     </section>
   );

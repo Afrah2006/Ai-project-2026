@@ -88,10 +88,10 @@ export function ProblemSection() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">
-                  A hybrid AI approach combining Constraint Satisfaction Problem (CSP) 
-                  for constraint modeling with Local Search Optimization algorithms 
-                  (Simulated Annealing, Tabu Search, Greedy) for finding optimal solutions. 
-                  This combination ensures feasibility while exploring the solution space efficiently.
+                  A hybrid AI approach combining Genetic Algorithms (GA) for global 
+                  optimization with Constraint Satisfaction Problem (CSP) techniques 
+                  for ensuring feasibility. This combination leverages the 
+                  exploration power of GA with the precision of CSP.
                 </p>
               </CardContent>
             </Card>

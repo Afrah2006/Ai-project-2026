@@ -1,53 +1,63 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Heart, Clock, Users, Ban, Calendar, Moon, Sun } from "lucide-react";
+import { Shield, Heart, Clock, Users, Ban, Calendar, Moon, Sun, AlertTriangle, UserCheck } from "lucide-react";
 
 const hardConstraints = [
   {
+    icon: Calendar,
+    title: "Max 5 Consecutive Days",
+    description: "No nurse can work more than 5 consecutive days in a row",
+  },
+  {
     icon: Users,
-    title: "Minimum Staffing",
-    description: "Each shift requires at least 4 nurses on duty",
+    title: "Shift Staffing Requirements",
+    description: "8 nurses for day shift, 8 for late shift, 6 for night shift, with at least one senior per shift",
   },
   {
     icon: Clock,
-    title: "Maximum Shifts",
-    description: "No nurse works more than 5 shifts per week",
+    title: "Minimum 8h Rest Between Shifts",
+    description: "No night → day transitions allowed (no consecutive shifts)",
   },
   {
     icon: Ban,
-    title: "No Consecutive Nights",
-    description: "Nurses cannot work two night shifts in a row",
+    title: "Max 72h Non-Working Time",
+    description: "Maximum of 3 consecutive free days allowed",
   },
   {
-    icon: Calendar,
+    icon: AlertTriangle,
     title: "One Shift Per Day",
     description: "Each nurse works at most one shift per day",
+  },
+  {
+    icon: Shield,
+    title: "Monthly Hours Limit",
+    description: "Minimum 80 hours and maximum 160 hours per month per nurse",
+  },
+  {
+    icon: Moon,
+    title: "Max 2 Consecutive Night Shifts",
+    description: "No nurse can work more than 2 night shifts in a row",
   },
 ];
 
 const softConstraints = [
   {
     icon: Heart,
-    title: "Shift Preferences",
-    description: "Honor nurse preferences for specific shift types",
-  },
-  {
-    icon: Moon,
-    title: "Night Shift Balance",
-    description: "Fair distribution of less desirable night shifts",
+    title: "Day-Off Requests",
+    description: "Two requests per week (days 1-7), first has higher priority. Min 3, max 4 nurses per day. Seniors get priority, otherwise random selection.",
   },
   {
     icon: Sun,
-    title: "Day Off Requests",
-    description: "Accommodate personal day-off requests when possible",
+    title: "Equal Night Shifts",
+    description: "Fair and equal distribution of night shifts across all 25 nurses",
   },
   {
-    icon: Shield,
-    title: "Skill Coverage",
-    description: "Ensure proper skill mix across all shifts",
+    icon: UserCheck,
+    title: "Equal Total Hours",
+    description: "Balance total hours worked equally across all nurses for fairness",
   },
 ];
 
@@ -66,7 +76,7 @@ export function ConstraintsSection() {
             Scheduling Constraints
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Balancing strict requirements with staff preferences
+            Balancing strict requirements with staff preferences for 25 nurses over 28 days
           </p>
         </motion.div>
 
