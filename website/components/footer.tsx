@@ -76,7 +76,7 @@ export function Footer() {
             Intelligent Hospital Nurse Scheduling System
           </p>
           <p className="text-xs text-muted-foreground mt-2">
-            AI Course Project 2025 - Built with Python, Genetic Algorithms & CSP
+            AI Course Project 2026 - Built with CSP & Local Search Optimization
           </p>
         </div>
       </div>

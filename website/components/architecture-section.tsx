@@ -19,42 +19,42 @@ const modules = [
     icon: FileJson,
     title: "Data Layer",
     file: "data/prepared_nurses.csv",
-    description: "Nurse profiles with skills, preferences, and availability",
+    description: "Nurse profiles with skills, seniority, and day-off requests",
     color: "primary",
   },
   {
     icon: Settings,
     title: "Configuration",
     file: "core/config.py",
-    description: "System parameters: 31 nurses, 30 days, 3 shifts",
-    color: "primary",
-  },
-  {
-    icon: Brain,
-    title: "GA Engine",
-    file: "core/genetic_algorithm.py",
-    description: "Genetic algorithm with selection, crossover, mutation",
+    description: "System parameters: 25 nurses, 28 days, 3 shifts",
     color: "primary",
   },
   {
     icon: Cog,
     title: "CSP Solver",
-    file: "core/constraint_handler.py",
-    description: "Constraint satisfaction and feasibility checking",
+    file: "core/csp_generator.py",
+    description: "Constraint satisfaction modeling and backtracking",
+    color: "primary",
+  },
+  {
+    icon: Brain,
+    title: "Local Search",
+    file: "core/local_search.py",
+    description: "Simulated Annealing, Tabu Search, Greedy algorithms",
     color: "primary",
   },
   {
     icon: BarChart3,
     title: "Fitness Evaluator",
     file: "core/fitness.py",
-    description: "Multi-objective scoring with weighted penalties",
+    description: "Multi-objective scoring with fairness metrics",
     color: "primary",
   },
   {
     icon: LineChart,
     title: "Visualization",
     file: "visualization/",
-    description: "Schedule display and convergence plotting",
+    description: "Schedule display, fairness charts, and comparison plots",
     color: "primary",
   },
 ];
@@ -94,8 +94,13 @@ export function ArchitectureSection() {
               </div>
               <ArrowRight className="text-muted-foreground rotate-90 lg:rotate-0" />
               <div className="flex flex-col items-center gap-2 p-4 rounded-lg bg-primary/10 border border-primary/30">
+                <Cog className="text-primary" />
+                <span className="text-sm font-medium text-foreground">CSP Model</span>
+              </div>
+              <ArrowRight className="text-muted-foreground rotate-90 lg:rotate-0" />
+              <div className="flex flex-col items-center gap-2 p-4 rounded-lg bg-primary/10 border border-primary/30">
                 <Brain className="text-primary" />
-                <span className="text-sm font-medium text-foreground">GA + CSP Engine</span>
+                <span className="text-sm font-medium text-foreground">Local Search</span>
               </div>
               <ArrowRight className="text-muted-foreground rotate-90 lg:rotate-0" />
               <div className="flex flex-col items-center gap-2 p-4 rounded-lg bg-secondary/50 border border-border">

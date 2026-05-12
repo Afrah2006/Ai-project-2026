@@ -8,20 +8,23 @@ import { ScheduleSection } from "@/components/schedule-section";
 import { ResultsSection } from "@/components/results-section";
 import { TeamSection } from "@/components/team-section";
 import { Footer } from "@/components/footer";
+import { ScheduleProvider } from "@/lib/schedule-context";
 
 export default function Home() {
   return (
-    <main className="min-h-screen">
-      <Navigation />
-      <Hero />
-      <ProblemSection />
-      <ConstraintsSection />
-      <ArchitectureSection />
-      <AlgorithmsSection />
-      <ScheduleSection />
-      <ResultsSection />
-      <TeamSection />
-      <Footer />
-    </main>
+    <ScheduleProvider>
+      <main className="min-h-screen">
+        <Navigation />
+        <Hero />
+        <ProblemSection />
+        <ConstraintsSection />
+        <ArchitectureSection />
+        <AlgorithmsSection />
+        <ScheduleSection />
+        <ResultsSection />
+        <TeamSection />
+        <Footer />
+      </main>
+    </ScheduleProvider>
   );
 }
