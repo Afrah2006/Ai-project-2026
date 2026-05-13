@@ -1,0 +1,5 @@
+# Minimal requirements — project uses the Python standard library only.
+# Add development tools here if desired:
+pytest
+black
+ruff

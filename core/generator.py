@@ -8,7 +8,7 @@ from core.config import (
 )
 from core.model import Nurse, Schedule
 from core.generator_helpers import _eligible, _consecutive_rest
-MAX_BACKTRACK = 200
+MAX_BACKTRACK = 2000
 RANDOM_SEED = None
 
 def _meets_min_hours(schedule: Schedule) -> bool:
@@ -34,11 +34,14 @@ def generate_schedule(nurses: List[Nurse], seed: int | None = RANDOM_SEED) -> Sc
 			day += 1
 		else:
 			backtrack_count += 1
+			# lightweight progress logging to help diagnose failures
+			if backtrack_count % 50 == 0:
+				print(f"[generator] backtracks={backtrack_count} at day={day}")
 			if backtrack_count > MAX_BACKTRACK:
 				raise RuntimeError(
 					"Generator failed to build a feasible schedule after "
-					f"{MAX_BACKTRACK} backtracks. "
-					"Try increasing MAX_BACKTRACK or check your constraints."
+					f"{backtrack_count} backtracks (limit {MAX_BACKTRACK}) at day {day}. "
+					"Try increasing MAX_BACKTRACK further, changing the seed, or check your constraints."
 				)
 			# here we clear the current day and the previous day to undo any bad assignments, then step back one day to retry(here we should use backtracking)
 			_clear_day(schedule, nurses, day)
