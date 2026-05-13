@@ -56,3 +56,18 @@ def parse_args():
 	p.add_argument("--limit", type=int, default=NUM_NURSES, help="max nurses to load from CSV")
 	p.add_argument("--seed", type=int, default=None, help="random seed (optional)")
 	return p.parse_args()
+
+def main():
+  args = parse_args()
+  data_path = args.data
+  if not os.path.exists(data_path):
+    print(f"Data file not found: {data_path}")
+    sys.exit(2)
+
+  print("Running Tabu Search (only mode)...")
+  sched = run_tabu(data_path, args.limit, args.seed)
+  print("\n Final Tabu Result ")
+  report(sched)
+
+if __name__ == "__main__":
+  main()

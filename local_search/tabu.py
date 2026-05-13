@@ -98,3 +98,73 @@ def _score(schedule: Schedule) -> float:
 		return evaluate_schedule(schedule)
 	return evaluate_schedule(schedule) + 10000.0 * len(violations)
 
+def _best_neighbor(
+  current: Schedule,
+  current_score: float,
+  tabu: Deque[Move],
+  rng: random.Random,
+  neighbors_per_iteration: int,
+) -> Tuple[Optional[Move], Optional[Schedule], float]:
+  """Explore a limited set of same-day swaps and return the best admissible one."""
+  all_moves = list(_candidate_moves(current))
+  if not all_moves:
+    return None, None, math.inf
+
+  if len(all_moves) > neighbors_per_iteration:
+    moves = rng.sample(all_moves, neighbors_per_iteration)
+  else:
+    moves = all_moves
+
+  best_move: Optional[Move] = None
+  best_sched: Optional[Schedule] = None
+  best_score = math.inf
+  best_is_tabu = False
+
+  for move in moves:
+    candidate = _apply_swap(current, move)
+    if candidate is None:
+      continue
+    if check_all_hard(candidate):
+      continue
+
+    score = evaluate_schedule(candidate)
+    is_tabu = move in tabu
+    if is_tabu and score >= current_score - 1e-9:
+      continue
+
+    if (
+      score < best_score - 1e-9
+      or (abs(score - best_score) <= 1e-9 and best_is_tabu and not is_tabu)
+    ):
+      best_move = move
+      best_sched = candidate
+      best_score = score
+      best_is_tabu = is_tabu
+
+  return best_move, best_sched, best_score
+
+
+def _candidate_moves(schedule: Schedule) -> Iterable[Move]:
+  """Yield unique day-level swap moves (day, nurse_a, nurse_b)."""
+  for day in range(1, NUM_DAYS + 1):
+    for idx, nurse_a in enumerate(schedule.nurses):
+      for nurse_b in schedule.nurses[idx + 1 :]:
+        a = schedule.get(day, nurse_a.nurse_id)
+        b = schedule.get(day, nurse_b.nurse_id)
+        if a == b:
+          continue
+        yield (day, nurse_a.nurse_id, nurse_b.nurse_id)
+
+
+def _apply_swap(schedule: Schedule, move: Move) -> Optional[Schedule]:
+  """Swap the two nurses' assignments on the given day and return a copy."""
+  day, nurse_id_a, nurse_id_b = move
+  shift_a = schedule.get(day, nurse_id_a)
+  shift_b = schedule.get(day, nurse_id_b)
+  if shift_a == shift_b:
+    return None
+
+  candidate = schedule.copy()
+  candidate.set(day, nurse_id_a, shift_b)
+  candidate.set(day, nurse_id_b, shift_a)
+  return candidate
