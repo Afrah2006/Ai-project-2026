@@ -18,8 +18,6 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-  LineChart,
-  Line,
 } from "recharts";
 
 export function ResultsSection() {

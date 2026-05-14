@@ -9,9 +9,10 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.evaluation import evaluate_schedule
-from core.generate_neighbours import get_random_neighbour
+from core.generate_neighbours import generate_neighbours
 from core.hard_constraints import check_all_hard
 from core.model import Schedule
+from core.config import NUM_DAYS
 
 
 # ---------------------------------------------------------------------------
@@ -75,6 +76,97 @@ def _accept_worse_move(delta: float, temperature: float) -> bool:
     return random.random() < math.exp(-exponent)
 
 
+def _random_same_day_swap(schedule: Schedule) -> Optional[Tuple[Schedule, Dict[str, Any]]]:
+    """Return a hard-feasible swap between two nurses on the same day."""
+    day = random.randint(1, NUM_DAYS)
+    nurses = list(schedule.nurses)
+    random.shuffle(nurses)
+
+    for idx, nurse_a in enumerate(nurses):
+        for nurse_b in nurses[idx + 1:]:
+            shift_a = schedule.get(day, nurse_a.nurse_id)
+            shift_b = schedule.get(day, nurse_b.nurse_id)
+            if shift_a == shift_b:
+                continue
+
+            candidate = schedule.copy()
+            candidate.set(day, nurse_a.nurse_id, shift_b)
+            candidate.set(day, nurse_b.nurse_id, shift_a)
+            if check_all_hard(candidate):
+                continue
+
+            return candidate, {
+                "type": "same_day_swap",
+                "day": day,
+                "nurse_a": nurse_a.nurse_id,
+                "shift_a": shift_a,
+                "nurse_b": nurse_b.nurse_id,
+                "shift_b": shift_b,
+            }
+
+    return None
+
+
+def _sample_best_candidate(
+    current_schedule: Schedule,
+    current_score: float,
+    samples: int,
+    neighbour_mode: str,
+    enforce_candidate_feasible: bool,
+) -> Optional[Tuple[Schedule, float, Dict[str, Any]]]:
+    """
+    Sample several feasible moves and return the best scored candidate.
+
+    The shared neighbour generator provides a small diverse batch. SA then
+    fills the rest with direct same-day swaps, because those preserve coverage
+    and tend to change the soft score more often.
+    """
+    best: Optional[Tuple[Schedule, float, Dict[str, Any]]] = None
+    useful_count = 0
+
+    generated_samples = 1
+    neighbours = generate_neighbours(
+        current_schedule,
+        n_samples=generated_samples,
+        mode=neighbour_mode,
+    )
+
+    for _ in range(max(0, samples - len(neighbours))):
+        neighbour = _random_same_day_swap(current_schedule)
+        if neighbour is not None:
+            neighbours.append(neighbour)
+
+    for candidate_schedule, move in neighbours:
+        if enforce_candidate_feasible and check_all_hard(candidate_schedule):
+            continue
+
+        candidate_score = evaluate_schedule(candidate_schedule)
+        if abs(candidate_score - current_score) <= 1e-9:
+            continue
+
+        useful_count += 1
+        if best is None or candidate_score < best[1]:
+            best = (candidate_schedule, candidate_score, move)
+
+    for _ in range(max(0, 3 - useful_count)):
+        neighbour = _random_same_day_swap(current_schedule)
+        if neighbour is None:
+            continue
+
+        candidate_schedule, move = neighbour
+        if enforce_candidate_feasible and check_all_hard(candidate_schedule):
+            continue
+
+        candidate_score = evaluate_schedule(candidate_schedule)
+        if abs(candidate_score - current_score) <= 1e-9:
+            continue
+
+        if best is None or candidate_score < best[1]:
+            best = (candidate_schedule, candidate_score, move)
+
+    return best
+
+
 # ---------------------------------------------------------------------------
 # Main SA function
 # ---------------------------------------------------------------------------
@@ -94,6 +186,7 @@ def simulated_annealing(
     max_reheats:     int   = 5,
     # --- Neighbour generation ---
     neighbour_mode: str = "weighted",
+    candidates_per_iteration: int = 80,
     # --- Reproducibility ---
     seed: Optional[int] = None,
     # --- Logging ---
@@ -146,8 +239,12 @@ def simulated_annealing(
         Maximum reheats per run.
 
     neighbour_mode : str
-        Passed to get_random_neighbour().
+        Passed to generate_neighbours().
         'weighted' (default) | 'uniform' | 'swap_only'.
+
+    candidates_per_iteration : int
+        Number of feasible candidate moves sampled before each SA acceptance
+        decision. Higher values improve move quality but cost more time.
 
     seed : int or None
         Fix for reproducibility.
@@ -200,6 +297,8 @@ def simulated_annealing(
         raise ValueError("min_temperature cannot be negative.")
     if max_iterations <= 0:
         raise ValueError("max_iterations must be positive.")
+    if candidates_per_iteration <= 0:
+        raise ValueError("candidates_per_iteration must be positive.")
 
     # --- Feasibility guard on input ---
     initial_violations = check_all_hard(initial_schedule)
@@ -235,29 +334,22 @@ def simulated_annealing(
     while iteration < max_iterations and temperature > min_temperature:
         iteration += 1
 
-        # 1. Generate one random neighbour
-        neighbour = get_random_neighbour(current_schedule, mode=neighbour_mode)
-        if neighbour is None:
+        # 1. Sample feasible neighbours and keep the best scored candidate
+        candidate = _sample_best_candidate(
+            current_schedule=current_schedule,
+            current_score=current_score,
+            samples=candidates_per_iteration,
+            neighbour_mode=neighbour_mode,
+            enforce_candidate_feasible=enforce_candidate_feasible,
+        )
+        if candidate is None:
             skipped_moves  += 1
             no_improve_ctr += 1
             temperature *= cooling_rate
             continue
 
-        candidate_schedule, _ = neighbour
-
-        # 2. Belt-and-suspenders hard-constraint check
-        if enforce_candidate_feasible and check_all_hard(candidate_schedule):
-            skipped_moves  += 1
-            no_improve_ctr += 1
-            temperature *= cooling_rate
-            continue
-
-        # 3. Evaluate and decide
-        candidate_score = evaluate_schedule(candidate_schedule)
+        candidate_schedule, candidate_score, _ = candidate
         delta = candidate_score - current_score   # negative = improvement
-
-        if delta != 0:
-            print(f"  [DEBUG] iter={iteration} delta={delta:.2f} candidate={candidate_score:.2f} current={current_score:.2f}")
 
         if delta <= 0 or _accept_worse_move(delta, temperature):
             current_schedule = candidate_schedule

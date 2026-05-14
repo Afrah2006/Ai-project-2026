@@ -1,7 +1,6 @@
 import type { ShiftType, Nurse, ScheduleResult } from "./schedule-context";
 
 const DAYS = 28;
-const NURSES_COUNT = 25;
 const DAY_SHIFT_REQUIRED = 8;
 const LATE_SHIFT_REQUIRED = 8;
 const NIGHT_SHIFT_REQUIRED = 6;
@@ -178,7 +177,7 @@ function calculateScore(schedule: ShiftType[][], nurses: Nurse[]): { score: numb
 // Simulated Annealing
 export function runSimulatedAnnealing(nurses: Nurse[]): ScheduleResult {
   const startTime = performance.now();
-  let schedule = generateInitialSchedule(nurses);
+  const schedule = generateInitialSchedule(nurses);
   let { score, hardViolations, softViolations } = calculateScore(schedule, nurses);
   
   let temperature = 100;
@@ -234,7 +233,7 @@ export function runSimulatedAnnealing(nurses: Nurse[]): ScheduleResult {
 export function runTabuSearch(nurses: Nurse[]): ScheduleResult {
   const startTime = performance.now();
   let schedule = generateInitialSchedule(nurses);
-  let { score, hardViolations, softViolations } = calculateScore(schedule, nurses);
+  let { score } = calculateScore(schedule, nurses);
   
   const tabuList: string[] = [];
   const tabuSize = 50;
@@ -406,7 +405,7 @@ export function runGreedy(nurses: Nurse[]): ScheduleResult {
 // CSP with Backtracking
 export function runCSP(nurses: Nurse[]): ScheduleResult {
   const startTime = performance.now();
-  let schedule = generateInitialSchedule(nurses);
+  const schedule = generateInitialSchedule(nurses);
   
   // Apply constraint propagation to fix violations
   for (let iteration = 0; iteration < 500; iteration++) {

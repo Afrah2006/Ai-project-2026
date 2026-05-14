@@ -10,8 +10,8 @@
 # What this script does
 # ---------------------
 #   1. Load nurse data from CSV.
-#   2. Build a feasible initial schedule using the backtracking generator
-#      (core/backtracking.py).  This is the PRIMARY and CORRECT source for SA.
+#   2. Build a feasible initial schedule using the primary CSP generator
+#      (core/generator.py). This is the PRIMARY and CORRECT source for SA.
 #   3. Run SA one or more times (different seeds) and collect SAResult objects.
 #   4. Print a per-run summary and a final comparison table.
 # =============================================================================
@@ -19,7 +19,6 @@
 from __future__ import annotations
 
 import argparse
-import random
 import sys
 import time
 
@@ -57,10 +56,6 @@ def _parse_args() -> argparse.Namespace:
         help="Base random seed. Run i uses seed+i. None = non-deterministic."
     )
     p.add_argument(
-        "--csp-timeout", type=float, default=120.0,
-        help="Max seconds for the backtracking phase (default: 120)"
-    )
-    p.add_argument(
         "--verbose", action="store_true",
         help="Print SA progress every log_every iterations"
     )
@@ -72,6 +67,10 @@ def _parse_args() -> argparse.Namespace:
         "--mode", type=str, default="weighted",
         choices=["weighted", "uniform", "swap_only"],
         help="Neighbour generation mode (default: weighted)"
+    )
+    p.add_argument(
+        "--candidates", type=int, default=80,
+        help="Candidate neighbours sampled per SA iteration (default: 80)"
     )
     return p.parse_args()
 
@@ -85,7 +84,7 @@ def main() -> None:
 
     # Deferred imports so --help is instant
     from core.model import load_nurses_from_csv
-    from core.backtracking import run_backtracking
+    from core.generator import generate_schedule
     from core.hard_constraints import check_all_hard
     from core.evaluation import evaluate_schedule
     from local_search.simulated_annealing import simulated_annealing, SAResult
@@ -102,31 +101,24 @@ def main() -> None:
     print(f"    Loaded {len(nurses)} nurses.")
 
     # ------------------------------------------------------------------ #
-    # 2. Build the initial feasible schedule via backtracking             #
+    # 2. Build the initial feasible schedule via the CSP generator         #
     # ------------------------------------------------------------------ #
-    print(f"\n[2] Building initial schedule with backtracking …")
-    print("    (hard-constraint backtracking generator, no soft constraints yet)")
+    print(f"\n[2] Building initial schedule with CSP generator ...")
+    print("    (primary generator: hard constraints first, no soft optimisation yet)")
 
-    if args.seed is not None:
-        random.seed(args.seed)
-    source_label = "backtracking"
+    source_label = "core.generator.generate_schedule"
 
     t0 = time.perf_counter()
     try:
-        initial_schedule = run_backtracking(
-            nurses,
-            time_limit_seconds=args.csp_timeout,
-        )
+        initial_schedule = generate_schedule(nurses, seed=args.seed)
         gen_time = time.perf_counter() - t0
-        if initial_schedule is None:
-            raise RuntimeError("Backtracking failed to find a feasible schedule in time.")
-        print(f"    backtracking succeeded in {gen_time:.2f}s.")
+        print(f"    generator succeeded in {gen_time:.2f}s.")
 
     except RuntimeError as exc:
         gen_time = time.perf_counter() - t0
-        print(f"\n    [!] backtracking failed after {gen_time:.1f}s: {exc}")
-        print("    [!] SA test stopped because this script now requires a backtracking schedule.")
-        print("    [!] Try increasing --csp-timeout or changing --seed.")
+        print(f"\n    [!] generator failed after {gen_time:.1f}s: {exc}")
+        print("    [!] SA test stopped because it requires a hard-feasible generator schedule.")
+        print("    [!] Try changing --seed or increasing core.generator.MAX_BACKTRACK.")
         sys.exit(1)
 
     # ------------------------------------------------------------------ #
@@ -141,7 +133,7 @@ def main() -> None:
         print("    First violations:")
         for v in violations[:5]:
             print(f"      {v}")
-        print("\n    [!] generator.py produced an infeasible schedule, so SA will not run.")
+        print("\n    [!] core.generator.generate_schedule produced an infeasible schedule, so SA will not run.")
         sys.exit(1)
     else:
         print("    Hard violations   : 0  OK")
@@ -167,6 +159,7 @@ def main() -> None:
             max_iterations=args.iterations,
             reheat_enabled=not args.no_reheat,
             neighbour_mode=args.mode,
+            candidates_per_iteration=args.candidates,
             seed=run_seed,
             log_every=1_000,
             verbose=args.verbose,
