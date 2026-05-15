@@ -23,7 +23,6 @@ const teamMembers = [
   },
   {
     name: "Mohamed Iskander Grabelsi",
-    role: "Algorithm Developer",
     contributions: ["Evaluation Metrics", "Tabu Search Implementation"],
     initials: "MG",
     icon: FlaskConical,
@@ -31,7 +30,6 @@ const teamMembers = [
   },
   {
     name: "Anis Mangullet",
-    role: "Data & CSP Engineer",
     contributions: ["Data Preparation", "CSP Generator", "Fairness Metrics", "Tabu Search"],
     initials: "AM",
     icon: Database,
@@ -39,7 +37,6 @@ const teamMembers = [
   },
   {
     name: "Tesnime Kahelessnane",
-    role: "Algorithm Developer",
     contributions: ["Propagation Algorithms", "Generate Neighbors Method"],
     initials: "TK",
     icon: Cpu,
@@ -47,16 +44,14 @@ const teamMembers = [
   },
   {
     name: "Nedjema Touil",
-    role: "Search & Configuration",
-    contributions: ["Greedy Search", "Data Gathering", "Configuration"],
+    contributions: ["Greedy Search", "Data Gathering", "Model Design"],
     initials: "NT",
     icon: Search,
     gradient: "from-rose-500 to-red-500",
   },
   {
     name: "Rania Rahmani",
-    role: "CSP Developer",
-    contributions: ["CSP Backtracking Method", "Model Design"],
+    contributions: ["CSP Backtracking Method", "Configuration"],
     initials: "RR",
     icon: Code,
     gradient: "from-indigo-500 to-violet-500",

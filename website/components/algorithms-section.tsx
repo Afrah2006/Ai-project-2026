@@ -9,28 +9,33 @@ import { Puzzle, Zap, RotateCcw, Flame, Target, Search, CheckCircle } from "luci
 const cspTechniques = [
   {
     icon: Puzzle,
-    title: "Variable Definition",
-    description: "Each nurse-day pair as a variable with shift domain {D, L, N, O}",
+    title: "Variables",
+    description:
+      "Each nurse–day cell is a decision: which shift (D, L, N) or off (O) they work. The generator fills 28 × 25 assignments under hard rules.",
   },
   {
     icon: Target,
-    title: "Constraint Modeling",
-    description: "Hard constraints encoded as CSP constraints for feasibility",
+    title: "Hard constraints",
+    description:
+      "Daily coverage (7 D, 7 L, 4 N with ≥1 senior each), forbidden shift transitions, streak limits, monthly hour bounds (120–170 h), one shift per day.",
   },
   {
     icon: RotateCcw,
-    title: "Backtracking",
-    description: "Systematic exploration with intelligent pruning of invalid paths",
+    title: "Backtracking search",
+    description:
+      "Builds the month day by day with randomized eligible picks; if a day cannot be completed, it clears and retries with backtracking (up to 2000 backtracks).",
   },
   {
     icon: Zap,
-    title: "Propagation",
-    description: "Arc consistency and forward checking to reduce search space",
+    title: "Eligibility checks",
+    description:
+      "Each assignment uses helper checks (transitions, consecutive work/rest, nights in a row, max hours) so only hard-feasible placements are kept.",
   },
   {
     icon: CheckCircle,
-    title: "Solution Validation",
-    description: "Verify all hard constraints are satisfied before accepting",
+    title: "Final validation",
+    description:
+      "After a full grid is built, the schedule must meet minimum monthly hours for every nurse; otherwise generation fails and can retry with a new seed.",
   },
 ];
 
@@ -39,33 +44,40 @@ const localSearchAlgorithms = [
     title: "Simulated Annealing",
     icon: Flame,
     color: "from-orange-500 to-red-500",
-    description: "Probabilistic technique that allows worse moves early to escape local optima, gradually cooling to converge on a good solution.",
+    description:
+      "Metropolis acceptance on feasible neighbours: improves the soft penalty while candidates stay hard-feasible. Uses geometric cooling with optional reheats when progress stalls.",
     params: [
-      { name: "Initial Temperature", value: "1000" },
-      { name: "Cooling Rate", value: "0.995" },
-      { name: "Min Temperature", value: "0.1" },
+      { name: "Initial temperature T₀", value: "150" },
+      { name: "Cooling rate α", value: "0.995" },
+      { name: "Min temperature", value: "0.01" },
+      { name: "Max iterations (site runner)", value: "10 000" },
+      { name: "Candidates / iteration", value: "80" },
+      { name: "Reheat", value: "on (patience 500, ×0.25, max 5)" },
     ],
   },
   {
     title: "Tabu Search",
     icon: Search,
     color: "from-blue-500 to-indigo-500",
-    description: "Uses memory structures to avoid revisiting recent solutions, enabling escape from local optima through intelligent exploration.",
+    description:
+      "Same-day swaps between two nurses (preserves per-day shift counts). Explores up to 60 random neighbours per iteration; tabu tenure avoids cycling. Requires a hard-feasible start (from the generator).",
     params: [
-      { name: "Tabu Tenure", value: "10" },
-      { name: "Max Iterations", value: "500" },
-      { name: "Neighborhood Size", value: "50" },
+      { name: "Tabu tenure", value: "12 moves" },
+      { name: "Iterations (site runner)", value: "2000" },
+      { name: "Neighbours sampled / iter", value: "60" },
+      { name: "Stop if no best for", value: "300 iterations" },
     ],
   },
   {
-    title: "Greedy Search",
+    title: "Greedy construction",
     icon: Target,
     color: "from-green-500 to-emerald-500",
-    description: "Fast heuristic that always makes the locally optimal choice, providing quick baseline solutions for comparison.",
+    description:
+      "Constructs a schedule day by day using a multi-criteria heuristic score per nurse–shift (preferences, hours balance, streaks, nights). Only hard feasibility is enforced when choosing the next assignment.",
     params: [
-      { name: "Selection Strategy", value: "Best First" },
-      { name: "Evaluation", value: "Immediate" },
-      { name: "Backtrack", value: "None" },
+      { name: "Search style", value: "Greedy per slot" },
+      { name: "Feasibility", value: "Hard constraints only" },
+      { name: "Soft goals", value: "Heuristic scoring (not evaluate_schedule)" },
     ],
   },
 ];
@@ -85,7 +97,8 @@ export function AlgorithmsSection() {
             AI Algorithms
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Hybrid approach combining Constraint Satisfaction Problem (CSP) modeling with Local Search Optimization
+            Feasible schedules from <code className="text-xs bg-secondary px-1 rounded">core/generator.py</code>, then
+            local search minimizes the same soft penalty from <code className="text-xs bg-secondary px-1 rounded">core/evaluation.py</code> (except greedy, which uses its own heuristic).
           </p>
         </motion.div>
 
@@ -111,15 +124,15 @@ export function AlgorithmsSection() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-3 text-foreground">
                     <Puzzle className="text-primary" />
-                    Constraint Satisfaction Problem
+                    Constraint-based initial schedule
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground mb-6">
-                    The scheduling problem is modeled as a CSP where each nurse-day 
-                    assignment is a variable, the possible shifts are domains, and 
-                    scheduling rules are constraints. This ensures all hard constraints 
-                    are satisfied before optimization.
+                    The project does not use a separate generic CSP solver library. Instead,{" "}
+                    <code className="text-xs bg-secondary px-1 rounded">generate_schedule</code> builds a hard-feasible
+                    month by assigning coverage shift by shift with backtracking. That schedule is the &quot;CSP&quot;
+                    baseline; Tabu and SA start from it and keep hard constraints satisfied.
                   </p>
                   <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
                     {cspTechniques.map((step, index) => (
@@ -130,12 +143,8 @@ export function AlgorithmsSection() {
                         <div className="p-2 rounded-full bg-primary/10 mb-3">
                           <step.icon className="text-primary size-5" />
                         </div>
-                        <h4 className="font-semibold text-foreground text-sm mb-1">
-                          {step.title}
-                        </h4>
-                        <p className="text-xs text-muted-foreground">
-                          {step.description}
-                        </p>
+                        <h4 className="font-semibold text-foreground text-sm mb-1">{step.title}</h4>
+                        <p className="text-xs text-muted-foreground">{step.description}</p>
                       </div>
                     ))}
                   </div>
@@ -144,34 +153,36 @@ export function AlgorithmsSection() {
 
               <Card className="bg-card border-border">
                 <CardHeader>
-                  <CardTitle className="text-lg text-foreground">
-                    CSP Formulation
-                  </CardTitle>
+                  <CardTitle className="text-lg text-foreground">Problem shape (config)</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4 font-mono text-sm">
                     <div className="p-3 rounded-lg bg-secondary/50">
                       <span className="text-primary">Variables:</span>
+                      <span className="text-foreground ml-2">shift per (nurse, day) — 25 × 28 cells</span>
+                    </div>
+                    <div className="p-3 rounded-lg bg-secondary/50">
+                      <span className="text-primary">Working shift domain:</span>
+                      <span className="text-foreground ml-2">{"{D, L, N}"} plus O off when not on a counted shift</span>
+                    </div>
+                    <div className="p-3 rounded-lg bg-secondary/50">
+                      <span className="text-primary">Daily coverage (hard):</span>
                       <span className="text-foreground ml-2">
-                        X[nurse][day] for 25 nurses × 28 days = 700 variables
+                        7 day, 7 late, 4 night; ≥1 senior on each of those shifts
                       </span>
                     </div>
                     <div className="p-3 rounded-lg bg-secondary/50">
-                      <span className="text-primary">Domains:</span>
+                      <span className="text-primary">Other hard rules:</span>
                       <span className="text-foreground ml-2">
-                        {"{"}D (Day), L (Late), N (Night), O (Off){"}"}
+                        max 5 consecutive work days; max 3 consecutive rest days; max 2 consecutive nights; forbidden
+                        transitions (D→L, L→N, N→D, N→L); 120–170 h/month; one shift/day
                       </span>
                     </div>
                     <div className="p-3 rounded-lg bg-secondary/50">
-                      <span className="text-primary">Hard Constraints:</span>
+                      <span className="text-primary">Soft goals (evaluation only):</span>
                       <span className="text-foreground ml-2">
-                        Staffing (8-8-6), max 5 consecutive days, 8h rest, 1 shift/day
-                      </span>
-                    </div>
-                    <div className="p-3 rounded-lg bg-secondary/50">
-                      <span className="text-primary">Soft Constraints:</span>
-                      <span className="text-foreground ml-2">
-                        Day-off requests, fair night distribution, equal hours
+                        preferred days off (weighted, seniority 1.5×), extra consecutive-night penalty beyond the hard
+                        cap, fairness variance on hours and nights across nurses
                       </span>
                     </div>
                   </div>
@@ -196,22 +207,22 @@ export function AlgorithmsSection() {
                   >
                     <Card className="h-full bg-card border-border hover:border-primary/50 transition-colors">
                       <CardHeader>
-                        <div className={`inline-flex p-3 rounded-xl bg-gradient-to-br ${algo.color} mb-3 w-fit`}>
+                        <div
+                          className={`inline-flex p-3 rounded-xl bg-gradient-to-br ${algo.color} mb-3 w-fit`}
+                        >
                           <algo.icon className="size-6 text-white" />
                         </div>
-                        <CardTitle className="text-lg text-foreground">
-                          {algo.title}
-                        </CardTitle>
+                        <CardTitle className="text-lg text-foreground">{algo.title}</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <p className="text-sm text-muted-foreground mb-4">
-                          {algo.description}
-                        </p>
+                        <p className="text-sm text-muted-foreground mb-4">{algo.description}</p>
                         <div className="space-y-2">
                           {algo.params.map((param) => (
-                            <div key={param.name} className="flex justify-between items-center">
+                            <div key={param.name} className="flex justify-between items-center gap-2">
                               <span className="text-xs text-muted-foreground">{param.name}</span>
-                              <Badge variant="secondary" className="text-xs">{param.value}</Badge>
+                              <Badge variant="secondary" className="text-xs shrink-0 max-w-[55%] text-right">
+                                {param.value}
+                              </Badge>
                             </div>
                           ))}
                         </div>
@@ -223,20 +234,43 @@ export function AlgorithmsSection() {
 
               <Card className="bg-card border-border">
                 <CardHeader>
-                  <CardTitle className="text-lg text-foreground">
-                    Objective Function
-                  </CardTitle>
+                  <CardTitle className="text-lg text-foreground">Objective (soft penalty)</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    All local search algorithms optimize the same multi-objective function:
+                <CardContent className="space-y-4 text-sm text-muted-foreground">
+                  <p>
+                    Tabu and SA minimize{" "}
+                    <code className="text-xs bg-secondary px-1 rounded text-foreground">evaluate_schedule</code> from{" "}
+                    <code className="text-xs bg-secondary px-1 rounded text-foreground">core/evaluation.py</code>: a
+                    single scalar penalty (lower is better). It combines:
                   </p>
-                  <div className="p-4 rounded-lg bg-secondary/50 font-mono text-sm">
-                    <p className="text-primary">score = base_score</p>
-                    <p className="text-destructive pl-4">- hard_violations × 1000</p>
-                    <p className="text-amber-400 pl-4">- soft_violations × 10</p>
-                    <p className="text-green-400 pl-4">+ preference_bonus × 5</p>
-                    <p className="text-blue-400 pl-4">+ fairness_bonus × 3</p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li>
+                      <span className="text-foreground">Preferred days off</span> (weeks starting days 1, 8, 15, 22):
+                      penalties if the nurse works on a requested off day; seniors use weight 1.5× juniors. Constants
+                      from <code className="text-xs">WEIGHTS</code>: first request 15 / reward −10, second 7 / reward
+                      −4.
+                    </li>
+                    <li>
+                      <span className="text-foreground">Consecutive nights (soft)</span>: beyond the hard cap of 2,
+                      each extra consecutive night adds 10 per excess step.
+                    </li>
+                    <li>
+                      <span className="text-foreground">Fairness</span> from{" "}
+                      <code className="text-xs bg-secondary px-1 rounded text-foreground">utils/fairness_metrics.py</code>
+                      : variance of total hours (×2), of night-shift counts (×5), and of each nurse&apos;s max
+                      consecutive-night streak (×10).
+                    </li>
+                  </ul>
+                  <p>
+                    Infeasible neighbours are rejected (SA) or heavily penalized in Tabu&apos;s internal scoring
+                    (+10 000 × number of hard violations) so the search stays on feasible schedules.
+                  </p>
+                  <div className="p-4 rounded-lg bg-secondary/50 font-mono text-xs space-y-2 text-foreground">
+                    <p className="text-primary">Local search: minimize penalty = evaluate_schedule(schedule)</p>
+                    <p className="text-muted-foreground">
+                      Dashboard &quot;Score&quot; is a display mapping from the runner: hard violations and scaled
+                      penalty → 0–1000 (higher is better on the site); optimization still minimizes the raw penalty.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
