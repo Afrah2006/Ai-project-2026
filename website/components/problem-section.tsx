@@ -88,10 +88,11 @@ export function ProblemSection() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">
-                  A hybrid AI approach combining Local search algorithms (Tabu, Simulated annealing and Greedy ) for global 
-                  optimization with Constraint Satisfaction Problem (CSP) techniques 
-                  for ensuring feasibility. This combination leverages the 
-                  exploration power of Local search  with the precision of CSP.
+                  A hybrid pipeline: a constraint-driven generator in{" "}
+                  <code className="text-xs bg-secondary px-1 rounded">core/generator.py</code> produces a hard-feasible
+                  month, then local search in <code className="text-xs bg-secondary px-1 rounded">local_search/</code>{" "}
+                  improves the soft penalty from <code className="text-xs bg-secondary px-1 rounded">core/evaluation.py</code>{" "}
+                  (Tabu and SA; greedy uses its own construction heuristic).
                 </p>
               </CardContent>
             </Card>

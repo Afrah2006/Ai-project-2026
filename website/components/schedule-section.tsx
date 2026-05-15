@@ -5,9 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sun, Moon, Sunset, Minus, Upload, Play, RotateCcw, Download, Edit3, Check } from "lucide-react";
-import { useState, useCallback, useRef } from "react";
-import { useSchedule, type ShiftType } from "@/lib/schedule-context";
-import { runSimulatedAnnealing, runTabuSearch, runGreedy, runCSP } from "@/lib/algorithms";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { useSchedule, type ShiftType, type Nurse } from "@/lib/schedule-context";
+import { runSimulatedAnnealing, runTabuSearch, runGreedy, runCSP, runAllSchedulers } from "@/lib/algorithms";
 import {
   Select,
   SelectContent,
@@ -31,11 +31,29 @@ const algorithms = [
 ];
 
 export function ScheduleSection() {
-  const { nurses, setNurses, selectedResult, addResult, clearResults, updateShift, isLoading, setIsLoading } = useSchedule();
+  const { nurses, setNurses, results, selectedResult, setSelectedResult, addResult, addResults, clearResults, updateShift, isLoading, setIsLoading } = useSchedule();
   const [selectedAlgorithm, setSelectedAlgorithm] = useState("sa");
   const [editMode, setEditMode] = useState(false);
   const [editingCell, setEditingCell] = useState<{ nurse: number; day: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [datasets, setDatasets] = useState<{name: string, data: Nurse[]}[]>([]);
+  const [selectedDatasetIndex, setSelectedDatasetIndex] = useState<string>("0");
+
+  useEffect(() => {
+    if (datasets.length === 0 && nurses.length > 0) {
+      setDatasets([{ name: "Project Default Dataset", data: nurses }]);
+    }
+  }, [nurses, datasets.length]);
+
+  const handleDatasetChange = (val: string) => {
+    setSelectedDatasetIndex(val);
+    const dataset = datasets[parseInt(val)];
+    if (dataset) {
+      setNurses(dataset.data);
+      clearResults();
+    }
+  };
 
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -50,6 +68,19 @@ export function ScheduleSection() {
       const dataLines = lines.slice(1);
       const parsedNurses = dataLines.map((line, index) => {
         const parts = line.split(",").map((p) => p.trim());
+        
+        // Check if it's the project's specific dataset format:
+        // ID,LastName,FirstName,DateOfBirth,Age,Gender,seniority,day_off1,day_off2
+        if (parts.length >= 7 && (parts[6].toLowerCase() === 'senior' || parts[6].toLowerCase() === 'junior')) {
+            return {
+              id: `nurse-${index + 1}`,
+              name: `${parts[2]} ${parts[1]}`, // FirstName LastName
+              isSenior: parts[6].toLowerCase() === 'senior',
+              dayOffRequests: [parseInt(parts[7]), parseInt(parts[8])].filter(n => !isNaN(n) && n > 0),
+            };
+        }
+        
+        // Fallback to the generic format
         return {
           id: `nurse-${index + 1}`,
           name: parts[0] || `Nurse ${index + 1}`,
@@ -59,39 +90,58 @@ export function ScheduleSection() {
       });
 
       if (parsedNurses.length > 0) {
+        const newDataset = { name: file.name, data: parsedNurses };
+        setDatasets((prev) => {
+          const newDatasets = [...prev, newDataset];
+          setSelectedDatasetIndex(String(newDatasets.length - 1));
+          return newDatasets;
+        });
         setNurses(parsedNurses);
         clearResults();
       }
     };
     reader.readAsText(file);
+    if (event.target) event.target.value = '';
   }, [setNurses, clearResults]);
 
-  const runAlgorithm = useCallback(() => {
+  const runAlgorithm = useCallback(async () => {
     setIsLoading(true);
-    
-    // Use setTimeout to allow UI to update
-    setTimeout(() => {
+    try {
       const algorithm = algorithms.find((a) => a.id === selectedAlgorithm);
       if (algorithm) {
-        const result = algorithm.run(nurses);
+        const result = await algorithm.run(nurses);
         addResult(result);
       }
+    } catch (error) {
+      console.error(error);
+      alert("Failed to run algorithm. Please check the console.");
+    } finally {
       setIsLoading(false);
-    }, 100);
+    }
   }, [selectedAlgorithm, nurses, addResult, setIsLoading]);
 
-  const runAllAlgorithms = useCallback(() => {
+  const runAllAlgorithms = useCallback(async () => {
     setIsLoading(true);
     clearResults();
-    
-    setTimeout(() => {
-      algorithms.forEach((algorithm) => {
-        const result = algorithm.run(nurses);
-        addResult(result);
-      });
+    try {
+      const order = algorithms.map((a) => a.id);
+      const { results: batch, errors } = await runAllSchedulers(nurses, order);
+      if (batch.length > 0) {
+        addResults(batch);
+      }
+      if (errors?.length) {
+        console.warn("Some schedulers failed:", errors);
+      }
+      if (batch.length === 0) {
+        alert("All algorithms failed to run. Check the server console and Python setup.");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Failed to run algorithms. Please check the console.");
+    } finally {
       setIsLoading(false);
-    }, 100);
-  }, [nurses, addResult, clearResults, setIsLoading]);
+    }
+  }, [nurses, addResults, clearResults, setIsLoading]);
 
   const handleCellClick = (nurseIndex: number, dayIndex: number) => {
     if (editMode && selectedResult) {
@@ -184,6 +234,22 @@ export function ScheduleSection() {
                   Upload CSV
                 </Button>
 
+                {/* Dataset Selection */}
+                {datasets.length > 0 && (
+                  <Select value={selectedDatasetIndex} onValueChange={handleDatasetChange}>
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue placeholder="Select dataset" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {datasets.map((ds, idx) => (
+                        <SelectItem key={idx} value={String(idx)}>
+                          {ds.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
                 {/* Algorithm Selection */}
                 <Select value={selectedAlgorithm} onValueChange={setSelectedAlgorithm}>
                   <SelectTrigger className="w-[200px]">
@@ -251,8 +317,26 @@ export function ScheduleSection() {
           })}
         </motion.div>
 
+        {/* Loading Widget */}
+        {isLoading && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center justify-center py-16 mb-8 bg-card rounded-xl border border-border shadow-sm"
+          >
+            <div className="relative size-16 mb-6">
+              <div className="absolute inset-0 border-4 border-muted rounded-full"></div>
+              <div className="absolute inset-0 border-4 border-primary rounded-full border-t-transparent animate-spin"></div>
+            </div>
+            <h3 className="text-xl font-bold text-foreground animate-pulse">Running Optimization Algorithms...</h3>
+            <p className="text-muted-foreground mt-2 text-center max-w-sm">
+              Please wait while the scheduling engine searches the solution space for the optimal nurse schedule.
+            </p>
+          </motion.div>
+        )}
+
         {/* Results Info */}
-        {selectedResult && (
+        {!isLoading && selectedResult && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -302,12 +386,26 @@ export function ScheduleSection() {
         )}
 
         {/* Schedule Grid */}
-        {selectedResult && (
+        {!isLoading && selectedResult && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
           >
+            {results.length > 1 && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                {results.map((result) => (
+                  <Button
+                    key={result.algorithm}
+                    variant={selectedResult?.algorithm === result.algorithm ? "default" : "outline"}
+                    onClick={() => setSelectedResult(result)}
+                    className="text-sm font-medium"
+                  >
+                    {result.algorithm}
+                  </Button>
+                ))}
+              </div>
+            )}
             <Card className="bg-card border-border overflow-hidden">
               <CardHeader className="pb-2">
                 <CardTitle className="text-foreground flex items-center gap-2">
@@ -324,7 +422,7 @@ export function ScheduleSection() {
                   <table className="w-full min-w-[1400px]">
                     <thead>
                       <tr className="border-b border-border">
-                        <th className="p-2 text-left text-xs font-semibold text-foreground bg-secondary/50 sticky left-0 z-10 min-w-[120px]">
+                        <th className="p-2 text-left text-xs font-semibold text-foreground bg-secondary sticky left-0 z-20 min-w-[120px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                           Nurse
                         </th>
                         {Array.from({ length: displayDays }, (_, i) => (
@@ -349,7 +447,7 @@ export function ScheduleSection() {
                     <tbody>
                       {nurses.slice(0, 25).map((nurse, nurseIndex) => (
                         <tr key={nurse.id} className="border-b border-border last:border-0 hover:bg-secondary/20">
-                          <td className="p-2 text-xs font-medium text-foreground bg-card sticky left-0 z-10 border-r border-border">
+                          <td className="p-2 text-xs font-medium text-foreground bg-card sticky left-0 z-20 border-r border-border shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                             <div className="flex items-center gap-1">
                               {nurse.name}
                               {nurse.isSenior && (
@@ -416,7 +514,7 @@ export function ScheduleSection() {
         )}
 
         {/* Empty State */}
-        {!selectedResult && (
+        {!isLoading && !selectedResult && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}

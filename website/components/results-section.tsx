@@ -210,30 +210,30 @@ export function ResultsSection() {
                   <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={comparisonData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                         <XAxis
                           dataKey="name"
-                          stroke="hsl(var(--foreground))"
+                          stroke="var(--foreground)"
                           fontSize={12}
                           tickLine={false}
                           axisLine={false}
                         />
                         <YAxis
-                          stroke="hsl(var(--foreground))"
+                          stroke="var(--foreground)"
                           fontSize={12}
                           tickLine={false}
                           axisLine={false}
                         />
                         <Tooltip
                           contentStyle={{
-                            backgroundColor: "hsl(var(--card))",
-                            border: "1px solid hsl(var(--border))",
+                            backgroundColor: "var(--card)",
+                            border: "1px solid var(--border)",
                             borderRadius: "8px",
-                            color: "hsl(var(--foreground))",
+                            color: "var(--foreground)",
                           }}
-                          labelStyle={{ color: "hsl(var(--foreground))" }}
+                          labelStyle={{ color: "var(--foreground)" }}
                         />
-                        <Bar dataKey="score" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Score" />
+                        <Bar dataKey="score" fill="var(--primary)" radius={[4, 4, 0, 0]} name="Score" />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -257,15 +257,15 @@ export function ResultsSection() {
                   <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <RadarChart data={radarData}>
-                        <PolarGrid stroke="hsl(var(--border))" />
+                        <PolarGrid stroke="var(--border)" />
                         <PolarAngleAxis
                           dataKey="metric"
-                          tick={{ fill: "hsl(var(--foreground))", fontSize: 11 }}
+                          tick={{ fill: "var(--foreground)", fontSize: 11 }}
                         />
                         <PolarRadiusAxis
                           angle={30}
                           domain={[0, 100]}
-                          tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
+                          tick={{ fill: "var(--muted-foreground)", fontSize: 10 }}
                         />
                         {results.map((result) => (
                           <Radar
@@ -278,17 +278,17 @@ export function ResultsSection() {
                           />
                         ))}
                         <Legend
-                          wrapperStyle={{ color: "hsl(var(--foreground))" }}
-                          formatter={(value) => <span style={{ color: "hsl(var(--foreground))" }}>{value}</span>}
+                          wrapperStyle={{ color: "var(--foreground)" }}
+                          formatter={(value) => <span style={{ color: "var(--foreground)" }}>{value}</span>}
                         />
                         <Tooltip
                           contentStyle={{
-                            backgroundColor: "hsl(var(--card))",
-                            border: "1px solid hsl(var(--border))",
+                            backgroundColor: "var(--card)",
+                            border: "1px solid var(--border)",
                             borderRadius: "8px",
-                            color: "hsl(var(--foreground))",
+                            color: "var(--foreground)",
                           }}
-                          labelStyle={{ color: "hsl(var(--foreground))" }}
+                          labelStyle={{ color: "var(--foreground)" }}
                         />
                       </RadarChart>
                     </ResponsiveContainer>
@@ -328,16 +328,16 @@ export function ResultsSection() {
                 <Card className="bg-card border-border h-full">
                   <CardHeader>
                     <CardTitle className="text-foreground">Hours Worked Per Nurse</CardTitle>
-                    <CardDescription>Target: 80-160 hours per month, balanced distribution</CardDescription>
+                    <CardDescription>Target: 120–170 hours over the 28-day horizon (from config), balanced where possible</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="h-[350px]">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={hoursData} layout="vertical">
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                           <XAxis
                             type="number"
-                            stroke="hsl(var(--foreground))"
+                            stroke="var(--foreground)"
                             fontSize={12}
                             tickLine={false}
                             axisLine={false}
@@ -346,7 +346,7 @@ export function ResultsSection() {
                           <YAxis
                             dataKey="nurse"
                             type="category"
-                            stroke="hsl(var(--foreground))"
+                            stroke="var(--foreground)"
                             fontSize={10}
                             tickLine={false}
                             axisLine={false}
@@ -354,12 +354,14 @@ export function ResultsSection() {
                           />
                           <Tooltip
                             contentStyle={{
-                              backgroundColor: "hsl(var(--card))",
-                              border: "1px solid hsl(var(--border))",
+                              backgroundColor: "var(--card)",
+                              border: "1px solid var(--border)",
                               borderRadius: "8px",
-                              color: "hsl(var(--foreground))",
+                              color: "var(--foreground)",
+                              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
                             }}
-                            labelStyle={{ color: "hsl(var(--foreground))" }}
+                            itemStyle={{ color: "var(--foreground)", fontWeight: "500" }}
+                            labelStyle={{ color: "var(--foreground)", fontWeight: "bold", paddingBottom: "4px", borderBottom: "1px solid var(--border)", marginBottom: "4px" }}
                           />
                           <Bar dataKey="hours" fill="#22c55e" radius={[0, 4, 4, 0]} name="Total Hours" />
                         </BarChart>
@@ -394,28 +396,30 @@ export function ResultsSection() {
                     <div className="h-[350px]">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={nightsData}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                           <XAxis
                             dataKey="nurse"
-                            stroke="hsl(var(--foreground))"
+                            stroke="var(--foreground)"
                             fontSize={10}
                             tickLine={false}
                             axisLine={false}
                           />
                           <YAxis
-                            stroke="hsl(var(--foreground))"
+                            stroke="var(--foreground)"
                             fontSize={12}
                             tickLine={false}
                             axisLine={false}
                           />
                           <Tooltip
                             contentStyle={{
-                              backgroundColor: "hsl(var(--card))",
-                              border: "1px solid hsl(var(--border))",
+                              backgroundColor: "var(--card)",
+                              border: "1px solid var(--border)",
                               borderRadius: "8px",
-                              color: "hsl(var(--foreground))",
+                              color: "var(--foreground)",
+                              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
                             }}
-                            labelStyle={{ color: "hsl(var(--foreground))" }}
+                            itemStyle={{ color: "var(--foreground)", fontWeight: "500" }}
+                            labelStyle={{ color: "var(--foreground)", fontWeight: "bold", paddingBottom: "4px", borderBottom: "1px solid var(--border)", marginBottom: "4px" }}
                           />
                           <Bar dataKey="nights" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Night Shifts" />
                         </BarChart>
@@ -452,10 +456,10 @@ export function ResultsSection() {
                     <div className="h-[200px]">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={comparisonData} layout="vertical">
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                           <XAxis
                             type="number"
-                            stroke="hsl(var(--foreground))"
+                            stroke="var(--foreground)"
                             fontSize={12}
                             tickLine={false}
                             axisLine={false}
@@ -463,7 +467,7 @@ export function ResultsSection() {
                           <YAxis
                             dataKey="name"
                             type="category"
-                            stroke="hsl(var(--foreground))"
+                            stroke="var(--foreground)"
                             fontSize={12}
                             tickLine={false}
                             axisLine={false}
@@ -471,12 +475,14 @@ export function ResultsSection() {
                           />
                           <Tooltip
                             contentStyle={{
-                              backgroundColor: "hsl(var(--card))",
-                              border: "1px solid hsl(var(--border))",
+                              backgroundColor: "var(--card)",
+                              border: "1px solid var(--border)",
                               borderRadius: "8px",
-                              color: "hsl(var(--foreground))",
+                              color: "var(--foreground)",
+                              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
                             }}
-                            labelStyle={{ color: "hsl(var(--foreground))" }}
+                            itemStyle={{ color: "var(--foreground)", fontWeight: "500" }}
+                            labelStyle={{ color: "var(--foreground)", fontWeight: "bold", paddingBottom: "4px", borderBottom: "1px solid var(--border)", marginBottom: "4px" }}
                             formatter={(value) => [`${value}ms`, "Execution Time"]}
                           />
                           <Bar dataKey="time" fill="#f59e0b" radius={[0, 4, 4, 0]} name="Time (ms)" />
