@@ -27,6 +27,8 @@ interface ScheduleContextType {
   setNurses: (nurses: Nurse[]) => void;
   results: ScheduleResult[];
   addResult: (result: ScheduleResult) => void;
+  /** Append many results in one update (faster than repeated addResult). */
+  addResults: (newResults: ScheduleResult[]) => void;
   clearResults: () => void;
   selectedResult: ScheduleResult | null;
   setSelectedResult: (result: ScheduleResult | null) => void;
@@ -37,13 +39,34 @@ interface ScheduleContextType {
 
 const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined);
 
-// Generate default nurses
-const defaultNurses: Nurse[] = Array.from({ length: 25 }, (_, i) => ({
-  id: `nurse-${i + 1}`,
-  name: `Nurse ${i + 1}`,
-  isSenior: i < 5, // First 5 are seniors
-  dayOffRequests: [],
-}));
+// Default project dataset (from data_ai_project.csv)
+const defaultNurses: Nurse[] = [
+  { id: "nurse-1", name: "IMAN BEBOUDI", isSenior: false, dayOffRequests: [2, 2] },
+  { id: "nurse-2", name: "NDJATE BEDBOUDI", isSenior: false, dayOffRequests: [1, 5] },
+  { id: "nurse-3", name: "KHEIREDDINE BADRAOUI", isSenior: false, dayOffRequests: [2, 3] },
+  { id: "nurse-4", name: "HOUDRA BERABEZ", isSenior: true, dayOffRequests: [6, 5] },
+  { id: "nurse-5", name: "ELHADI BERRAHIL", isSenior: true, dayOffRequests: [6, 7] },
+  { id: "nurse-6", name: "ABDELKARIM BERRAHIL", isSenior: false, dayOffRequests: [7, 4] },
+  { id: "nurse-7", name: "IMEN BRADAI", isSenior: true, dayOffRequests: [7, 1] },
+  { id: "nurse-8", name: "HOUSSEM EDDINE BRANES", isSenior: false, dayOffRequests: [5, 2] },
+  { id: "nurse-9", name: "SAMIRA BERBEGUE", isSenior: false, dayOffRequests: [3, 4] },
+  { id: "nurse-10", name: "KHOULOUD BERBAGUE", isSenior: true, dayOffRequests: [3, 6] },
+  { id: "nurse-11", name: "MAROUA BERDIOM", isSenior: true, dayOffRequests: [2, 7] },
+  { id: "nurse-12", name: "CHAIMA BERHI", isSenior: false, dayOffRequests: [4, 7] },
+  { id: "nurse-13", name: "MIANEL BERROGTANE", isSenior: false, dayOffRequests: [5, 4] },
+  { id: "nurse-14", name: "LAILA BARKOUK", isSenior: false, dayOffRequests: [6, 2] },
+  { id: "nurse-15", name: "ASIA BERKANI", isSenior: false, dayOffRequests: [7, 4] },
+  { id: "nurse-16", name: "MERIEM BERKOUS", isSenior: true, dayOffRequests: [3, 5] },
+  { id: "nurse-17", name: "INA BERNAMDANE", isSenior: false, dayOffRequests: [6, 3] },
+  { id: "nurse-18", name: "ROUMAISSA BEROUR", isSenior: false, dayOffRequests: [2, 3] },
+  { id: "nurse-19", name: "YASMINA BRISEKH", isSenior: false, dayOffRequests: [4, 5] },
+  { id: "nurse-20", name: "RACHID BRIZAKH", isSenior: true, dayOffRequests: [4, 6] },
+  { id: "nurse-21", name: "BADREDDINE BESSIKEUR", isSenior: false, dayOffRequests: [6, 7] },
+  { id: "nurse-22", name: "NESRINE BSIKER", isSenior: false, dayOffRequests: [6, 1] },
+  { id: "nurse-23", name: "NABILA IBRIR", isSenior: false, dayOffRequests: [7, 2] },
+  { id: "nurse-24", name: "AMMAR ERHAILI", isSenior: false, dayOffRequests: [4, 3] },
+  { id: "nurse-25", name: "KHAIER EDINE AKTOUF", isSenior: false, dayOffRequests: [7, 4] },
+];
 
 export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   const [nurses, setNurses] = useState<Nurse[]>(defaultNurses);
@@ -54,6 +77,12 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   const addResult = useCallback((result: ScheduleResult) => {
     setResults((prev) => [...prev, result]);
     setSelectedResult(result);
+  }, []);
+
+  const addResults = useCallback((newResults: ScheduleResult[]) => {
+    if (newResults.length === 0) return;
+    setResults((prev) => [...prev, ...newResults]);
+    setSelectedResult(newResults[newResults.length - 1]);
   }, []);
 
   const clearResults = useCallback(() => {
@@ -89,6 +118,7 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
         setNurses,
         results,
         addResult,
+        addResults,
         clearResults,
         selectedResult,
         setSelectedResult,

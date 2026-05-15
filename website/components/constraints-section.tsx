@@ -13,13 +13,14 @@ const hardConstraints = [
   },
   {
     icon: Users,
-    title: "Shift Staffing Requirements",
-    description: "8 nurses for day shift, 8 for late shift, 6 for night shift, with at least one senior per shift",
+    title: "Shift staffing (per day)",
+    description: "7 on day (D), 7 on late (L), 4 on night (N), each with at least one senior nurse",
   },
   {
     icon: Clock,
-    title: "Minimum 8h Rest Between Shifts",
-    description: "No night → day transitions allowed (no consecutive shifts)",
+    title: "Forbidden shift transitions",
+    description:
+      "Pairs (D→L), (L→N), (N→D), (N→L) are disallowed so rest between working shifts respects the configured pattern",
   },
   {
     icon: Ban,
@@ -33,8 +34,8 @@ const hardConstraints = [
   },
   {
     icon: Shield,
-    title: "Monthly Hours Limit",
-    description: "Minimum 80 hours and maximum 160 hours per month per nurse",
+    title: "Monthly hours",
+    description: "Between 120 and 170 working hours per nurse over the 28-day horizon (from config)",
   },
   {
     icon: Moon,
@@ -51,13 +52,13 @@ const softConstraints = [
   },
   {
     icon: Sun,
-    title: "Equal Night Shifts",
-    description: "Fair and equal distribution of night shifts across all 25 nurses",
+    title: "Night-shift balance (soft)",
+    description: "Variance of night-shift counts across nurses is added to the penalty (weight 5)",
   },
   {
     icon: UserCheck,
-    title: "Equal Total Hours",
-    description: "Balance total hours worked equally across all nurses for fairness",
+    title: "Hours balance (soft)",
+    description: "Variance of total working hours across nurses is penalized (weight 2)",
   },
 ];
 
