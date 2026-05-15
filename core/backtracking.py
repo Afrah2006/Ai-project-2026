@@ -1,15 +1,22 @@
 from __future__ import annotations
 
+import copy
 import random
 import time
 from typing import Dict, List, Optional, Set, Tuple
 
 from core.config import (
     NUM_DAYS, WORKING_SHIFTS, NON_WORKING_SHIFTS, COVERAGE,
-    FORBIDDEN_TRANSITIONS, HARD, SHIFTS,
+    FORBIDDEN_TRANSITIONS, HARD, SHIFTS, ALL_SHIFT_CODES,
 )
 from core.model import Schedule, Nurse
 from core.hard_constraints import check_all_hard
+from core.propagation import (
+    get_initial_domains,
+    forward_check,
+    ac3_propagate,
+    Domains,
+)
 
 _ASSIGNABLE = {'D', 'L', 'N', 'O'}
 
@@ -118,10 +125,6 @@ def _fill_day(schedule, nurses, day):
             return streak
 
         def _sort_key(n):
-            # 1. Forced-work nurses first (approaching max rest)
-            # 2. Low work-streak preferred (avoid bunching forced-rest days)
-            # 3. Fewer alternatives first (lock constrained nurses early)
-            # 4. Lower hours first (balance workload)
             return (-_rest_streak(n), _work_streak(n), _alt(n),
                     schedule.total_hours(n.nurse_id), random.random())
 
@@ -167,6 +170,160 @@ def _clear_day(schedule, nurses, day):
 
 
 # ---------------------------------------------------------------------------
+# Propagation-guided repair phase
+# ---------------------------------------------------------------------------
+def _find_violating_nurses(schedule, violations):
+    """Parse violation strings to extract (nurse_id, day) pairs to repair."""
+    import re
+    targets: Set[Tuple[int, int]] = set()
+    for v in violations:
+        # Match nurse-based violations: [Hx] Nurse <id> ...day <d>...
+        m_nurse = re.search(r'Nurse\s+(\d+)', v)
+        m_day = re.search(r'day\s+(\d+)', v)
+        m_days = re.search(r'days\s+(\d+)', v)
+        if m_nurse and (m_day or m_days):
+            nid = int(m_nurse.group(1))
+            d = int((m_day or m_days).group(1))
+            targets.add((nid, d))
+        # Match coverage violations: [H6] Day <d> shift ...
+        m_cov = re.search(r'Day\s+(\d+)\s+shift', v)
+        if m_cov:
+            d = int(m_cov.group(1))
+            for nurse in schedule.nurses:
+                targets.add((nurse.nurse_id, d))
+    return targets
+
+
+def _propagation_repair(schedule, nurses, time_limit, start_time):
+    """
+    Use propagation (forward_check + ac3_propagate) to repair constraint
+    violations in a completed schedule.
+
+    Strategy:
+    1. Identify cells involved in violations.
+    2. Reset them to 'F' (free).
+    3. Compute domains via get_initial_domains (uses is_valid_assignment).
+    4. Re-assign using domain values, applying forward_check after each
+       assignment for early dead-end detection.
+    5. Optionally run ac3_propagate for deeper arc-consistency pruning.
+
+    Returns True if all violations are repaired, False otherwise.
+    """
+    MAX_REPAIR_ROUNDS = 10
+
+    for repair_round in range(MAX_REPAIR_ROUNDS):
+        if time.time() - start_time > time_limit:
+            return False
+
+        violations = check_all_hard(schedule)
+        if not violations:
+            return True
+
+        # Identify violating variables
+        targets = _find_violating_nurses(schedule, violations)
+        if not targets:
+            return False
+
+        # Pick a subset to repair (limit scope to avoid cascading failures)
+        repair_vars = list(targets)
+        random.shuffle(repair_vars)
+        repair_vars = repair_vars[:min(len(repair_vars), 15)]
+
+        # Save the state before repair attempt
+        saved_grid = dict(schedule.grid)
+
+        # Clear the targeted cells
+        for nid, d in repair_vars:
+            if 1 <= d <= NUM_DAYS and nid in schedule.nurse_by_id:
+                schedule.set(d, nid, 'F')
+
+        # Get domains using propagation module
+        domains = get_initial_domains(schedule)
+
+        # Run AC-3 to achieve arc consistency and prune domains
+        consistent = ac3_propagate(schedule, domains)
+        if not consistent:
+            # AC-3 found inconsistency; restore and try different subset
+            schedule.grid = saved_grid
+            continue
+
+        # Sort repair variables: most constrained first (smallest domain)
+        repair_vars.sort(key=lambda v: len(domains.get(v, set())))
+
+        success = True
+        assigned_during_repair: List[Tuple[int, int]] = []
+
+        for var in repair_vars:
+            nid, d = var
+            if schedule.get(d, nid) != 'F':
+                continue  # already assigned by another repair
+
+            domain = domains.get(var, set())
+            if not domain:
+                # No valid assignment from propagation; fall back to
+                # relaxed check for options
+                domain = {s for s in ALL_SHIFT_CODES
+                          if _is_valid_for_bt(schedule, d, nid, s)}
+
+            if not domain:
+                success = False
+                break
+
+            # Try values in a smart order: prefer the shift that was
+            # originally assigned (if in domain), then others
+            orig_shift = saved_grid.get((d, nid), 'F')
+            ordered = sorted(domain,
+                             key=lambda s: (s != orig_shift, random.random()))
+
+            placed = False
+            for shift in ordered:
+                schedule.set(d, nid, shift)
+                assigned_during_repair.append(var)
+
+                # Use forward_check from propagation to prune domains
+                # of neighboring variables
+                fc_ok = forward_check(schedule, d, nid, domains)
+                if fc_ok:
+                    placed = True
+                    break
+                else:
+                    # Forward check detected dead end; undo and try next
+                    schedule.set(d, nid, 'F')
+                    assigned_during_repair.pop()
+                    # Restore domains for affected neighbors
+                    domains = get_initial_domains(schedule)
+
+            if not placed:
+                # Try relaxed assignment as fallback
+                for shift in ALL_SHIFT_CODES:
+                    if _is_valid_for_bt(schedule, d, nid, shift):
+                        schedule.set(d, nid, shift)
+                        assigned_during_repair.append(var)
+                        placed = True
+                        break
+
+            if not placed:
+                success = False
+                break
+
+        if not success:
+            # Restore and retry with different random subset
+            schedule.grid = saved_grid
+            continue
+
+        # Verify the full schedule after repairs
+        new_violations = check_all_hard(schedule)
+        if not new_violations:
+            return True
+
+        # If violations got worse, restore
+        if len(new_violations) > len(violations):
+            schedule.grid = saved_grid
+
+    return False
+
+
+# ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 def run_backtracking(
@@ -175,8 +332,14 @@ def run_backtracking(
 ) -> Optional[Schedule]:
     """
     Build a hard-constraint-valid schedule using day-level backtracking
-    with randomised greedy assignment, dynamic shift ordering, and
-    smart nurse selection heuristics.
+    with randomised greedy assignment, dynamic shift ordering, smart
+    nurse selection heuristics, and propagation-based repair.
+
+    The algorithm has two phases:
+      Phase 1 — Greedy day-level construction with backtracking.
+      Phase 2 — Propagation-guided repair using forward_check and
+                ac3_propagate from propagation.py to fix any remaining
+                hard-constraint violations.
 
     Parameters
     ----------
@@ -199,6 +362,7 @@ def run_backtracking(
         day = 1
         bt = 0
 
+        # === Phase 1: Greedy day-level construction with backtracking ===
         while day <= NUM_DAYS:
             if time.time() - start > time_limit_seconds:
                 break
@@ -220,7 +384,18 @@ def run_backtracking(
             if not violations:
                 elapsed = time.time() - start
                 print(f"[Backtracking] restart={restart} bt={bt} "
-                      f"time={elapsed:.2f}s solved=True")
+                      f"time={elapsed:.2f}s solved=True (phase 1)")
+                return schedule
+
+            # === Phase 2: Propagation-guided repair ===
+            print(f"[Backtracking] restart={restart} bt={bt} "
+                  f"violations={len(violations)}, attempting propagation repair...")
+
+            if _propagation_repair(schedule, nurses,
+                                   time_limit_seconds, start):
+                elapsed = time.time() - start
+                print(f"[Backtracking] restart={restart} "
+                      f"time={elapsed:.2f}s solved=True (propagation repair)")
                 return schedule
 
     elapsed = time.time() - start
