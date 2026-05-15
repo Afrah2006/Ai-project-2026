@@ -50,7 +50,7 @@ def _try_shift_reassignment(schedule: Schedule) -> Optional[Neighbour]:
                         'old_shift': current,
                         'new_shift': new_shift,
                     }
-                    return new_schedule, move
+                    return (new_schedule, move)
 
     return None
 

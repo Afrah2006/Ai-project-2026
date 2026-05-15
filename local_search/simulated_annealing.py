@@ -14,7 +14,6 @@ from core.hard_constraints import check_all_hard
 from core.model import Schedule
 from core.config import NUM_DAYS
 
-
 # ---------------------------------------------------------------------------
 # Result container
 # ---------------------------------------------------------------------------
@@ -124,10 +123,9 @@ def _sample_best_candidate(
     best: Optional[Tuple[Schedule, float, Dict[str, Any]]] = None
     useful_count = 0
 
-    generated_samples = 1
     neighbours = generate_neighbours(
         current_schedule,
-        n_samples=generated_samples,
+        n_samples=1,
         mode=neighbour_mode,
     )
 
@@ -141,9 +139,6 @@ def _sample_best_candidate(
             continue
 
         candidate_score = evaluate_schedule(candidate_schedule)
-        if abs(candidate_score - current_score) <= 1e-9:
-            continue
-
         useful_count += 1
         if best is None or candidate_score < best[1]:
             best = (candidate_schedule, candidate_score, move)
@@ -158,9 +153,6 @@ def _sample_best_candidate(
             continue
 
         candidate_score = evaluate_schedule(candidate_schedule)
-        if abs(candidate_score - current_score) <= 1e-9:
-            continue
-
         if best is None or candidate_score < best[1]:
             best = (candidate_schedule, candidate_score, move)
 
@@ -186,7 +178,7 @@ def simulated_annealing(
     max_reheats:     int   = 5,
     # --- Neighbour generation ---
     neighbour_mode: str = "weighted",
-    candidates_per_iteration: int = 80,
+    candidates_per_iteration: int = 8,
     # --- Reproducibility ---
     seed: Optional[int] = None,
     # --- Logging ---
@@ -194,7 +186,7 @@ def simulated_annealing(
     verbose:   bool = False,
     # --- Safety guards ---
     require_initial_feasible:   bool = True,
-    enforce_candidate_feasible: bool = True,
+    enforce_candidate_feasible: bool = False,
 ) -> SAResult:
     """
     Improve a hard-feasible schedule using Simulated Annealing.
@@ -334,21 +326,16 @@ def simulated_annealing(
     while iteration < max_iterations and temperature > min_temperature:
         iteration += 1
 
-        # 1. Sample feasible neighbours and keep the best scored candidate
-        candidate = _sample_best_candidate(
-            current_schedule=current_schedule,
-            current_score=current_score,
-            samples=candidates_per_iteration,
-            neighbour_mode=neighbour_mode,
-            enforce_candidate_feasible=enforce_candidate_feasible,
-        )
-        if candidate is None:
+        # 1. Pick one feasible neighbour via fast same-day swap
+        swap = _random_same_day_swap(current_schedule)
+        if swap is None:
             skipped_moves  += 1
             no_improve_ctr += 1
             temperature *= cooling_rate
             continue
 
-        candidate_schedule, candidate_score, _ = candidate
+        candidate_schedule, _ = swap
+        candidate_score = evaluate_schedule(candidate_schedule)
         delta = candidate_score - current_score   # negative = improvement
 
         if delta <= 0 or _accept_worse_move(delta, temperature):
