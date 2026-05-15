@@ -150,7 +150,7 @@ def generate_greedy_schedule(schedule: Schedule) -> Schedule:
 
             requested_off = (nurse.day_off1 == day_of_week
                              or nurse.day_off2 == day_of_week)
-            preferred_rest = 'O' if requested_off else 'F'
+            preferred_rest = 'O'
 
             if is_valid_for_greedy(schedule, day, nurse.nurse_id, preferred_rest):
                

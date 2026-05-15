@@ -75,6 +75,13 @@ def _parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+def _print_day_off_counts(schedule, indent: str = "") -> None:
+    print(f"{indent}--- Day Off Counts ---")
+    for nurse in schedule.nurses:
+        day_offs = schedule.get_nurse_schedule(nurse.nurse_id).count("O")
+        print(f"{indent}{nurse.full_name}: {day_offs} day offs")
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -209,6 +216,8 @@ def main() -> None:
         print(f"\n  Best schedule grid:")
         for line in best_overall.best_schedule.summary().splitlines():
             print("    " + line)
+        print()
+        _print_day_off_counts(best_overall.best_schedule, indent="    ")
 
     print("\n[Done]")
 
