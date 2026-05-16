@@ -10,6 +10,26 @@ import {
   nursesToCsv,
   parseJsonFromStdout,
 } from '@/lib/run-algorithm-backend';
+import { WEB_RUNNER_CONFIG } from '@/lib/runner-config';
+
+const TABU_WEB = WEB_RUNNER_CONFIG.tabu;
+const SA_WEB = WEB_RUNNER_CONFIG.sa;
+
+function tabuSeed(seed: number | undefined): number {
+  return seed ?? TABU_WEB.seed;
+}
+
+function tabuIterations(iterations: number | undefined): number {
+  return iterations ?? TABU_WEB.iterations;
+}
+
+function tabuMaxNoImprove(maxNoImprove: number | undefined): number {
+  return maxNoImprove ?? TABU_WEB.maxNoImprove;
+}
+
+function saIterations(iterations: number | undefined): number | undefined {
+  return iterations ?? SA_WEB.iterations;
+}
 
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
@@ -257,9 +277,9 @@ export async function POST(request: Request) {
               tempFilePath,
               alg,
               batchRuns,
-              alg === 'tabu' ? (seed ?? 1) : seed,
-              alg === 'tabu' ? (iterations ?? 2000) : iterations,
-              alg === 'tabu' ? (maxNoImprove ?? 80) : maxNoImprove,
+              alg === 'tabu' ? tabuSeed(seed) : seed,
+              alg === 'tabu' ? tabuIterations(iterations) : alg === 'sa' ? saIterations(iterations) : iterations,
+              alg === 'tabu' ? tabuMaxNoImprove(maxNoImprove) : maxNoImprove,
               checkpointPath,
               request.signal
             );
@@ -320,9 +340,9 @@ export async function POST(request: Request) {
               tempFilePath,
               alg,
               0,
-              alg === 'tabu' ? (seed ?? 1) : seed,
-              alg === 'tabu' ? (iterations ?? 2000) : iterations,
-              alg === 'tabu' ? (maxNoImprove ?? 80) : maxNoImprove,
+              alg === 'tabu' ? tabuSeed(seed) : seed,
+              alg === 'tabu' ? tabuIterations(iterations) : alg === 'sa' ? saIterations(iterations) : iterations,
+              alg === 'tabu' ? tabuMaxNoImprove(maxNoImprove) : maxNoImprove,
               checkpointPath,
               request.signal
             );
@@ -399,9 +419,13 @@ export async function POST(request: Request) {
           tempFilePath,
           algorithm,
           batchRuns,
-          algorithm === 'tabu' ? (seed ?? 1) : seed,
-          algorithm === 'tabu' ? (iterations ?? 2000) : iterations,
-          algorithm === 'tabu' ? (maxNoImprove ?? 80) : maxNoImprove,
+          algorithm === 'tabu' ? tabuSeed(seed) : seed,
+          algorithm === 'tabu'
+            ? tabuIterations(iterations)
+            : algorithm === 'sa'
+              ? saIterations(iterations)
+              : iterations,
+          algorithm === 'tabu' ? tabuMaxNoImprove(maxNoImprove) : maxNoImprove,
           checkpointPath,
           request.signal
         );
@@ -413,9 +437,13 @@ export async function POST(request: Request) {
         tempFilePath,
         algorithm,
         batchRuns,
-        algorithm === 'tabu' ? (seed ?? 1) : seed,
-        algorithm === 'tabu' ? (iterations ?? 2000) : iterations,
-        algorithm === 'tabu' ? (maxNoImprove ?? 80) : maxNoImprove,
+        algorithm === 'tabu' ? tabuSeed(seed) : seed,
+        algorithm === 'tabu'
+          ? tabuIterations(iterations)
+          : algorithm === 'sa'
+            ? saIterations(iterations)
+            : iterations,
+        algorithm === 'tabu' ? tabuMaxNoImprove(maxNoImprove) : maxNoImprove,
         checkpointPath,
         request.signal
       );

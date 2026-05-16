@@ -1,4 +1,5 @@
 import type { Nurse, ScheduleResult } from "./schedule-context";
+import { WEB_RUNNER_CONFIG } from "./runner-config";
 
 export interface TabuProgressUpdate {
   iteration?: number;
@@ -32,7 +33,11 @@ export async function runSimulatedAnnealing(nurses: Nurse[], signal?: AbortSigna
   const response = await fetch(apiUrl("/api/run-algorithm"), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ algorithm: 'sa', nurses, iterations: 400 }),
+    body: JSON.stringify({
+      algorithm: "sa",
+      nurses,
+      iterations: WEB_RUNNER_CONFIG.sa.iterations,
+    }),
     signal,
   });
   if (!response.ok) {
@@ -50,11 +55,11 @@ export async function runTabuSearch(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      algorithm: 'tabu',
+      algorithm: "tabu",
       nurses,
-      seed: 1,
-      iterations: 2000,
-      maxNoImprove: 80,
+      seed: WEB_RUNNER_CONFIG.tabu.seed,
+      iterations: WEB_RUNNER_CONFIG.tabu.iterations,
+      maxNoImprove: WEB_RUNNER_CONFIG.tabu.maxNoImprove,
     }),
     signal,
   });

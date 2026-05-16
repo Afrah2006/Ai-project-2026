@@ -5,6 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Puzzle, Zap, RotateCcw, Flame, Target, Search, CheckCircle } from "lucide-react";
+import { WEB_RUNNER_CONFIG, formatRunnerCount } from "@/lib/runner-config";
+
+const TABU_WEB = WEB_RUNNER_CONFIG.tabu;
+const SA_WEB = WEB_RUNNER_CONFIG.sa;
 
 const cspTechniques = [
   {
@@ -50,7 +54,7 @@ const localSearchAlgorithms = [
       { name: "Initial temperature T₀", value: "150" },
       { name: "Cooling rate α", value: "0.995" },
       { name: "Min temperature", value: "0.01" },
-      { name: "Max iterations (site runner)", value: "400" },
+      { name: "Max iterations (site runner)", value: formatRunnerCount(SA_WEB.iterations) },
       { name: "Candidates / iteration", value: "80" },
       { name: "Reheat", value: "on (patience 500, ×0.25, max 5)" },
     ],
@@ -60,12 +64,12 @@ const localSearchAlgorithms = [
     icon: Search,
     color: "from-blue-500 to-indigo-500",
     description:
-      "Same-day swaps between two nurses (preserves per-day shift counts). Explores up to 40 random neighbours per iteration; tabu tenure avoids cycling. Requires a hard-feasible start (from the generator).",
+      `Same-day swaps between two nurses (preserves per-day shift counts). Explores up to ${TABU_WEB.neighborsPerIteration} random neighbours per iteration; tabu tenure avoids cycling. Requires a hard-feasible start (from the generator).`,
     params: [
       { name: "Tabu tenure", value: "12 moves" },
-      { name: "Iterations (site runner)", value: "2 000" },
-      { name: "Neighbours / iteration", value: "40" },
-      { name: "Stop if no best for", value: "80 iterations" },
+      { name: "Iterations (site runner)", value: formatRunnerCount(TABU_WEB.iterations) },
+      { name: "Neighbours / iteration", value: String(TABU_WEB.neighborsPerIteration) },
+      { name: "Stop if no best for", value: `${formatRunnerCount(TABU_WEB.maxNoImprove)} iterations` },
     ],
   },
   {
