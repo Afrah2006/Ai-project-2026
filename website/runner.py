@@ -97,7 +97,7 @@ def write_progress_log(log_path: str, lines: list[str]) -> None:
             handle.write(line.rstrip() + "\n")
 
 
-def build_base_schedule(nurses, seed_to_use: int, max_backtrack: int):
+def build_base_schedule(nurses, seed_to_use: int):
     """Generate the hard-feasible base schedule without polluting stdout."""
     silent_buffer = StringIO()
     with redirect_stdout(silent_buffer):
@@ -155,7 +155,6 @@ def main():
                         base_sched = build_base_schedule(
                             nurses,
                             current_seed + attempt,
-                            WEB_GENERATOR_MAX_BACKTRACK,
                         )
                         break
                     except RuntimeError:
@@ -178,7 +177,7 @@ def main():
                     iterations=batch_tabu_iters,
                     max_no_improve=batch_tabu_stop,
                     neighbors_per_iteration=WEB_TABU_NEIGHBORS_PER_ITERATION,
-                    log_every=WEB_TABU_LOG_EVERY,
+                    stream=False,
                 )
                 final_sched = generate_tabu_schedule(base_sched, config=config)
                 algorithm_name = "Tabu Search"
@@ -221,11 +220,7 @@ def main():
         attempt_count = 1 if requested_seed is not None else 5
         for attempt in range(attempt_count):
             try:
-                base_sched = build_base_schedule(
-                    nurses,
-                    seed_to_use,
-                    WEB_GENERATOR_MAX_BACKTRACK,
-                )
+                base_sched = build_base_schedule(nurses, seed_to_use)
                 break
             except RuntimeError:
                 if requested_seed is None:
@@ -252,9 +247,8 @@ def main():
                 verbose=True,
                 iterations=iters,
                 max_no_improve=max_no_improve,
-                checkpoint_path=args.checkpoint,
                 neighbors_per_iteration=WEB_TABU_NEIGHBORS_PER_ITERATION,
-                log_every=WEB_TABU_LOG_EVERY,
+                stream=False,
             )
             run_progress_lines.append(
                 f"[tabu] starting iterations={iters} max_no_improve={max_no_improve} "
@@ -279,7 +273,7 @@ def main():
                     seed=seed_to_use,
                     verbose=True,
                     log_every=100,
-                    checkpoint_path=args.checkpoint,
+                    stream=False,
                 )
             progress_log = [line for line in stdout_buffer.getvalue().splitlines() if line.strip()]
             run_progress_lines.extend(progress_log)
