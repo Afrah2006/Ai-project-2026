@@ -109,6 +109,11 @@ export function ScheduleSection() {
       });
 
       if (parsedNurses.length > 0) {
+        if (parsedNurses.length !== 25) {
+          alert(
+            `This file has ${parsedNurses.length} nurses; the scheduler requires exactly 25. Tabu and SA will fail until you use a full dataset.`
+          );
+        }
         const newDataset = { name: file.name, data: parsedNurses };
         setDatasets((prev) => {
           const newDatasets = [...prev, newDataset];
@@ -148,7 +153,11 @@ export function ScheduleSection() {
       } else {
         console.error(error);
         setRunStatus(`Failed ${algorithmLabel}`);
-        alert("Failed to run algorithm. Please check the console.");
+        alert(
+          error instanceof Error
+            ? error.message
+            : "Failed to run algorithm. Please check the console."
+        );
       }
     } finally {
       setIsLoading(false);
@@ -185,7 +194,11 @@ export function ScheduleSection() {
       } else {
         console.error(error);
         setRunStatus("Compare run failed");
-        alert("Failed to run algorithms. Please check the console.");
+        alert(
+          error instanceof Error
+            ? error.message
+            : "Failed to run algorithms. Please check the console."
+        );
       }
     } finally {
       setIsLoading(false);

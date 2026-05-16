@@ -13,7 +13,7 @@ from uuid import uuid4
 WEBSITE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 RUNNER_PATH = os.path.join(WEBSITE_ROOT, "runner.py")
 PYTHON = sys.executable
-TIMEOUT_SEC = 15 * 60
+TIMEOUT_SEC = 60 * 60
 
 
 def nurses_to_csv(nurses: list[dict[str, Any]]) -> str:
@@ -90,10 +90,18 @@ def tabu_max_no_improve(max_no_improve: int | None) -> int:
     return 200 if max_no_improve is None else max_no_improve
 
 
+def sa_iterations(iterations: int | None) -> int:
+    return 1200 if iterations is None else iterations
+
+
 def handle_request(body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
     nurses = body.get("nurses")
     if not isinstance(nurses, list) or not nurses:
         return 400, {"error": "Missing nurses data"}
+    if len(nurses) != 25:
+        return 400, {
+            "error": f"Scheduling requires exactly 25 nurses (received {len(nurses)})."
+        }
 
     seed = body.get("seed") if isinstance(body.get("seed"), int) else None
     iterations = body.get("iterations") if isinstance(body.get("iterations"), int) else None
@@ -121,7 +129,13 @@ def handle_request(body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
                         alg,
                         batch_runs=batch_runs,
                         seed=tabu_seed(seed) if alg == "tabu" else seed,
-                        iterations=tabu_iterations(iterations) if alg == "tabu" else iterations,
+                        iterations=(
+                            tabu_iterations(iterations)
+                            if alg == "tabu"
+                            else sa_iterations(iterations)
+                            if alg == "sa"
+                            else iterations
+                        ),
                         max_no_improve=tabu_max_no_improve(max_no_improve)
                         if alg == "tabu"
                         else max_no_improve,
@@ -155,7 +169,13 @@ def handle_request(body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
                         csv_path,
                         str(alg),
                         seed=tabu_seed(seed) if alg == "tabu" else seed,
-                        iterations=tabu_iterations(iterations) if alg == "tabu" else iterations,
+                        iterations=(
+                            tabu_iterations(iterations)
+                            if alg == "tabu"
+                            else sa_iterations(iterations)
+                            if alg == "sa"
+                            else iterations
+                        ),
                         max_no_improve=tabu_max_no_improve(max_no_improve)
                         if alg == "tabu"
                         else max_no_improve,
@@ -191,7 +211,13 @@ def handle_request(body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
                 str(algorithm),
                 batch_runs=batch_runs,
                 seed=tabu_seed(seed) if algorithm == "tabu" else seed,
-                iterations=tabu_iterations(iterations) if algorithm == "tabu" else iterations,
+                iterations=(
+                    tabu_iterations(iterations)
+                    if algorithm == "tabu"
+                    else sa_iterations(iterations)
+                    if algorithm == "sa"
+                    else iterations
+                ),
                 max_no_improve=tabu_max_no_improve(max_no_improve)
                 if algorithm == "tabu"
                 else max_no_improve,

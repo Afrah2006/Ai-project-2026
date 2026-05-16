@@ -1,4 +1,5 @@
 import type { Nurse, ScheduleResult } from "./schedule-context";
+import { assertNurseCount, readApiErrorMessage } from "./api-errors";
 import { WEB_RUNNER_CONFIG } from "./runner-config";
 
 export interface TabuProgressUpdate {
@@ -29,73 +30,70 @@ async function readJsonOrThrow(response: Response): Promise<Record<string, unkno
   }
 }
 
-export async function runSimulatedAnnealing(nurses: Nurse[], signal?: AbortSignal): Promise<ScheduleResult> {
+async function postAlgorithm(
+  body: Record<string, unknown>,
+  label: string,
+  signal?: AbortSignal
+): Promise<ScheduleResult> {
+  const nurses = body.nurses as Nurse[];
+  assertNurseCount(nurses);
+
   const response = await fetch(apiUrl("/api/run-algorithm"), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(await readApiErrorMessage(response));
+  }
+
+  const payload = (await response.json()) as ScheduleResult;
+  if (!payload?.schedule || !Array.isArray(payload.schedule)) {
+    throw new Error(`${label} returned an invalid schedule payload.`);
+  }
+  return payload;
+}
+
+export async function runSimulatedAnnealing(
+  nurses: Nurse[],
+  signal?: AbortSignal
+): Promise<ScheduleResult> {
+  return postAlgorithm(
+    {
       algorithm: "sa",
       nurses,
       iterations: WEB_RUNNER_CONFIG.sa.iterations,
-    }),
-    signal,
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to run Simulated Annealing');
-  }
-  return response.json();
+    },
+    "Simulated Annealing",
+    signal
+  );
 }
 
 export async function runTabuSearch(
   nurses: Nurse[],
   signal?: AbortSignal
 ): Promise<ScheduleResult> {
-  const response = await fetch(apiUrl("/api/run-algorithm"), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  return postAlgorithm(
+    {
       algorithm: "tabu",
       nurses,
       seed: WEB_RUNNER_CONFIG.tabu.seed,
       iterations: WEB_RUNNER_CONFIG.tabu.iterations,
       maxNoImprove: WEB_RUNNER_CONFIG.tabu.maxNoImprove,
-    }),
-    signal,
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to run Tabu Search');
-  }
-  return response.json();
+    },
+    "Tabu Search",
+    signal
+  );
 }
 
 export async function runGreedy(nurses: Nurse[], signal?: AbortSignal): Promise<ScheduleResult> {
-  const response = await fetch(apiUrl("/api/run-algorithm"), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ algorithm: 'greedy', nurses }),
-    signal,
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to run Greedy Algorithm');
-  }
-  return response.json();
+  return postAlgorithm({ algorithm: "greedy", nurses }, "Greedy", signal);
 }
 
 export async function runCSP(nurses: Nurse[], signal?: AbortSignal): Promise<ScheduleResult> {
-  const response = await fetch(apiUrl("/api/run-algorithm"), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ algorithm: 'csp', nurses }),
-    signal,
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to run CSP');
-  }
-  return response.json();
+  return postAlgorithm({ algorithm: "csp", nurses }, "CSP", signal);
 }
 
 export interface BatchRunResult {
@@ -107,23 +105,28 @@ export interface BatchRunResult {
   }[];
 }
 
-export async function runBatchAlgorithm(algorithm: string, nurses: Nurse[], batchRuns: number, signal?: AbortSignal): Promise<BatchRunResult> {
+export async function runBatchAlgorithm(
+  algorithm: string,
+  nurses: Nurse[],
+  batchRuns: number,
+  signal?: AbortSignal
+): Promise<BatchRunResult> {
+  assertNurseCount(nurses);
   const response = await fetch(apiUrl("/api/run-algorithm"), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ algorithm, nurses, batchRuns }),
     signal,
   });
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || `Failed to run batch analysis for ${algorithm}`);
+    throw new Error(await readApiErrorMessage(response));
   }
   return response.json();
 }
 
-const DEFAULT_COMPARE_ORDER = ['sa', 'tabu', 'greedy', 'csp'] as const;
+const DEFAULT_COMPARE_ORDER = ["sa", "tabu", "greedy", "csp"] as const;
 
-/** One round-trip: same Python `runner.py` as single runs, executed in parallel on the server. */
+/** One round-trip; server runs each algorithm sequentially (stable on Windows). */
 export async function runAllSchedulers(
   nurses: Nurse[],
   algorithmIds: readonly string[] = DEFAULT_COMPARE_ORDER,
@@ -132,15 +135,16 @@ export async function runAllSchedulers(
   results: ScheduleResult[];
   errors?: { algorithm: string; message: string }[];
 }> {
+  assertNurseCount(nurses);
   const response = await fetch(apiUrl("/api/run-algorithm"), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ nurses, algorithms: [...algorithmIds] }),
     signal,
   });
   const payload = await readJsonOrThrow(response);
   if (!response.ok) {
-    throw new Error(String(payload.error || 'Failed to run schedulers'));
+    throw new Error(String(payload.error || "Failed to run schedulers"));
   }
   return {
     results: (payload.results || []) as ScheduleResult[],
@@ -153,14 +157,11 @@ export interface FullBatchAnalysisResponse {
   errors?: { algorithm: string; message: string }[];
 }
 
-/**
- * One round-trip for statistical tab: greedy → CSP → tabu → SA on the server
- * (sequential Python workers — stable on Windows; slower wall-clock than parallel).
- */
 export async function runFullBatchAnalysis(
   nurses: Nurse[],
   batchRuns: number
 ): Promise<FullBatchAnalysisResponse> {
+  assertNurseCount(nurses);
   let response: Response;
   try {
     response = await fetch(apiUrl("/api/run-algorithm"), {
@@ -173,10 +174,9 @@ export async function runFullBatchAnalysis(
       typeof window !== "undefined" && window.location?.protocol === "file:"
         ? " Open the app at http://localhost:3000 (npm run dev), not as a file:// page."
         : " Check that `npm run dev` is running and try again.";
-    throw new Error(
-      `Could not reach the scheduling API (network error).${hint}`,
-      { cause: err }
-    );
+    throw new Error(`Could not reach the scheduling API (network error).${hint}`, {
+      cause: err,
+    });
   }
   const payload = await readJsonOrThrow(response);
   if (!response.ok) {

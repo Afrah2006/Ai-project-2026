@@ -31,12 +31,13 @@ function saIterations(iterations: number | undefined): number | undefined {
   return iterations ?? SA_WEB.iterations;
 }
 
-export const maxDuration = 300;
+/** Long Tabu/SA runs can exceed 15+ minutes; allow up to 1h on Node/Docker (Vercel caps lower). */
+export const maxDuration = 3600;
 export const dynamic = 'force-dynamic';
 
 const PYTHON_ARGS = {
-  maxBuffer: 1024 * 1024 * 10,
-  timeout: 15 * 60 * 1000,
+  maxBuffer: 1024 * 1024 * 50,
+  timeout: 60 * 60 * 1000,
 } as const;
 
 async function runPythonAlgorithm(
@@ -234,6 +235,14 @@ export async function POST(request: Request) {
     if (!nurses || !Array.isArray(nurses)) {
       return NextResponse.json({ error: 'Missing nurses data' }, { status: 400 });
     }
+    if (nurses.length !== 25) {
+      return NextResponse.json(
+        {
+          error: `Scheduling requires exactly 25 nurses (received ${nurses.length}).`,
+        },
+        { status: 400 }
+      );
+    }
 
     if (process.env.VERCEL) {
       return forwardToVercelPython(body, request.signal);
@@ -270,7 +279,6 @@ export async function POST(request: Request) {
       try {
         for (const alg of order) {
           try {
-            const checkpointPath = path.join(tempDir, `nurses_${alg}_${randomUUID()}.chk.json`);
             const { stdout } = await runPythonAlgorithm(
               pythonExecutable,
               runnerPath,
@@ -280,7 +288,7 @@ export async function POST(request: Request) {
               alg === 'tabu' ? tabuSeed(seed) : seed,
               alg === 'tabu' ? tabuIterations(iterations) : alg === 'sa' ? saIterations(iterations) : iterations,
               alg === 'tabu' ? tabuMaxNoImprove(maxNoImprove) : maxNoImprove,
-              checkpointPath,
+              undefined,
               request.signal
             );
             const parsed = parseJsonFromStdout(stdout) as Record<string, unknown>;
@@ -331,10 +339,11 @@ export async function POST(request: Request) {
       const tempFilePath = path.join(tempDir, `nurses_${randomUUID()}.csv`);
       fs.writeFileSync(tempFilePath, nursesToCsv(nurses));
       try {
-        const settled = await Promise.allSettled(
-          multiAlgorithms.map((alg) => {
-            const checkpointPath = path.join(tempDir, `nurses_${alg}_${randomUUID()}.chk.json`);
-            return runPythonAlgorithm(
+        const results: unknown[] = [];
+        const errors: { algorithm: string; message: string }[] = [];
+        for (const alg of multiAlgorithms) {
+          try {
+            const { stdout } = await runPythonAlgorithm(
               pythonExecutable,
               runnerPath,
               tempFilePath,
@@ -343,44 +352,30 @@ export async function POST(request: Request) {
               alg === 'tabu' ? tabuSeed(seed) : seed,
               alg === 'tabu' ? tabuIterations(iterations) : alg === 'sa' ? saIterations(iterations) : iterations,
               alg === 'tabu' ? tabuMaxNoImprove(maxNoImprove) : maxNoImprove,
-              checkpointPath,
+              undefined,
               request.signal
             );
-          })
-        );
-        const results: unknown[] = [];
-        const errors: { algorithm: string; message: string }[] = [];
-        settled.forEach((out, i) => {
-          const alg = multiAlgorithms[i];
-          if (out.status === 'fulfilled') {
-            try {
-              const parsed = parseJsonFromStdout(out.value.stdout) as Record<string, unknown>;
-              if (parsed.error) {
-                errors.push({
-                  algorithm: alg,
-                  message: String(parsed.error),
-                });
-              } else if (
-                parsed.schedule &&
-                Array.isArray(parsed.schedule) &&
-                typeof parsed.algorithm === 'string'
-              ) {
-                results.push(parsed);
-              } else {
-                errors.push({ algorithm: alg, message: 'Invalid schedule output from runner' });
-              }
-            } catch {
-              errors.push({ algorithm: alg, message: 'Failed to parse algorithm output' });
+            const parsed = parseJsonFromStdout(stdout) as Record<string, unknown>;
+            if (parsed.error) {
+              errors.push({ algorithm: alg, message: String(parsed.error) });
+            } else if (
+              parsed.schedule &&
+              Array.isArray(parsed.schedule) &&
+              typeof parsed.algorithm === 'string'
+            ) {
+              results.push(parsed);
+            } else {
+              errors.push({ algorithm: alg, message: 'Invalid schedule output from runner' });
             }
-          } else {
-            const reason = out.reason as Error & { code?: string };
+          } catch (runErr: unknown) {
+            const reason = runErr as Error & { code?: string };
             const msg =
               reason?.code === 'ETIMEDOUT'
-                ? 'Algorithm run timed out'
+                ? 'Algorithm run timed out (server limit). Try again or reduce iterations.'
                 : reason?.message || 'Execution failed';
             errors.push({ algorithm: alg, message: msg });
           }
-        });
+        }
         if (errors.length === multiAlgorithms.length) {
           return NextResponse.json(
             { error: 'All algorithm runs failed', details: errors },
@@ -409,7 +404,6 @@ export async function POST(request: Request) {
     const batchRuns = Number(body.batchRuns) || 0;
 
     try {
-      const checkpointPath = path.join(tempDir, `nurses_${algorithm}_${randomUUID()}.chk.json`);
       const wantsProgressStream = algorithm === 'tabu' && batchRuns === 0 && body.progressStream === true;
 
       if (wantsProgressStream) {
@@ -426,7 +420,7 @@ export async function POST(request: Request) {
               ? saIterations(iterations)
               : iterations,
           algorithm === 'tabu' ? tabuMaxNoImprove(maxNoImprove) : maxNoImprove,
-          checkpointPath,
+          undefined,
           request.signal
         );
       }
@@ -444,7 +438,7 @@ export async function POST(request: Request) {
             ? saIterations(iterations)
             : iterations,
         algorithm === 'tabu' ? tabuMaxNoImprove(maxNoImprove) : maxNoImprove,
-        checkpointPath,
+        undefined,
         request.signal
       );
 
