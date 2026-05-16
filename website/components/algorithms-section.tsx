@@ -50,7 +50,7 @@ const localSearchAlgorithms = [
       { name: "Initial temperature T₀", value: "150" },
       { name: "Cooling rate α", value: "0.995" },
       { name: "Min temperature", value: "0.01" },
-      { name: "Max iterations (site runner)", value: "10 000" },
+      { name: "Max iterations (site runner)", value: "400" },
       { name: "Candidates / iteration", value: "80" },
       { name: "Reheat", value: "on (patience 500, ×0.25, max 5)" },
     ],
@@ -60,13 +60,12 @@ const localSearchAlgorithms = [
     icon: Search,
     color: "from-blue-500 to-indigo-500",
     description:
-      "Same-day swaps between two nurses (preserves per-day shift counts). Explores up to 60 random neighbours per iteration; tabu tenure avoids cycling. Requires a hard-feasible start (from the generator).",
+      "Same-day swaps between two nurses (preserves per-day shift counts). Explores up to 40 random neighbours per iteration; tabu tenure avoids cycling. Requires a hard-feasible start (from the generator).",
     params: [
       { name: "Tabu tenure", value: "12 moves" },
-      { name: "Iterations (site runner)", value: "10 000" },
-      { name: "Neighbours / iteration", value: "60" },
-      { name: "Neighbours sampled / iter", value: "6" },
-      { name: "Stop if no best for", value: "200 iterations" },
+      { name: "Iterations (site runner)", value: "2 000" },
+      { name: "Neighbours / iteration", value: "40" },
+      { name: "Stop if no best for", value: "80 iterations" },
     ],
   },
   {

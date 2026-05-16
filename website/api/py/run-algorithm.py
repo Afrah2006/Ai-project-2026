@@ -83,11 +83,11 @@ def tabu_seed(seed: int | None) -> int:
 
 
 def tabu_iterations(iterations: int | None) -> int:
-    return 10000 if iterations is None else iterations
+    return 2000 if iterations is None else iterations
 
 
 def tabu_max_no_improve(max_no_improve: int | None) -> int:
-    return 200 if max_no_improve is None else max_no_improve
+    return 80 if max_no_improve is None else max_no_improve
 
 
 def handle_request(body: dict[str, Any]) -> tuple[int, dict[str, Any]]:

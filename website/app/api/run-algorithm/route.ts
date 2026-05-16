@@ -258,8 +258,8 @@ export async function POST(request: Request) {
               alg,
               batchRuns,
               alg === 'tabu' ? (seed ?? 1) : seed,
-              alg === 'tabu' ? (iterations ?? 10000) : iterations,
-              alg === 'tabu' ? (maxNoImprove ?? 200) : maxNoImprove,
+              alg === 'tabu' ? (iterations ?? 2000) : iterations,
+              alg === 'tabu' ? (maxNoImprove ?? 80) : maxNoImprove,
               checkpointPath,
               request.signal
             );
@@ -321,8 +321,8 @@ export async function POST(request: Request) {
               alg,
               0,
               alg === 'tabu' ? (seed ?? 1) : seed,
-              alg === 'tabu' ? (iterations ?? 10000) : iterations,
-              alg === 'tabu' ? (maxNoImprove ?? 200) : maxNoImprove,
+              alg === 'tabu' ? (iterations ?? 2000) : iterations,
+              alg === 'tabu' ? (maxNoImprove ?? 80) : maxNoImprove,
               checkpointPath,
               request.signal
             );
@@ -400,8 +400,8 @@ export async function POST(request: Request) {
           algorithm,
           batchRuns,
           algorithm === 'tabu' ? (seed ?? 1) : seed,
-          algorithm === 'tabu' ? (iterations ?? 10000) : iterations,
-          algorithm === 'tabu' ? (maxNoImprove ?? 200) : maxNoImprove,
+          algorithm === 'tabu' ? (iterations ?? 2000) : iterations,
+          algorithm === 'tabu' ? (maxNoImprove ?? 80) : maxNoImprove,
           checkpointPath,
           request.signal
         );
@@ -414,8 +414,8 @@ export async function POST(request: Request) {
         algorithm,
         batchRuns,
         algorithm === 'tabu' ? (seed ?? 1) : seed,
-        algorithm === 'tabu' ? (iterations ?? 10000) : iterations,
-        algorithm === 'tabu' ? (maxNoImprove ?? 200) : maxNoImprove,
+        algorithm === 'tabu' ? (iterations ?? 2000) : iterations,
+        algorithm === 'tabu' ? (maxNoImprove ?? 80) : maxNoImprove,
         checkpointPath,
         request.signal
       );

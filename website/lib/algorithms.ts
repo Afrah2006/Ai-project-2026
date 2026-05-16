@@ -32,7 +32,7 @@ export async function runSimulatedAnnealing(nurses: Nurse[], signal?: AbortSigna
   const response = await fetch(apiUrl("/api/run-algorithm"), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ algorithm: 'sa', nurses }),
+    body: JSON.stringify({ algorithm: 'sa', nurses, iterations: 400 }),
     signal,
   });
   if (!response.ok) {
@@ -53,8 +53,8 @@ export async function runTabuSearch(
       algorithm: 'tabu',
       nurses,
       seed: 1,
-      iterations: 10000,
-      maxNoImprove: 200,
+      iterations: 2000,
+      maxNoImprove: 80,
     }),
     signal,
   });
