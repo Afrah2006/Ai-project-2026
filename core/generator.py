@@ -8,7 +8,10 @@ from core.config import (
 )
 from core.model import Nurse, Schedule
 from core.generator_helpers import _eligible, _consecutive_rest
-MAX_BACKTRACK = 2000
+from core.cancel import check_cancelled
+from core.trace import emit_trace, emit_progress
+
+MAX_BACKTRACK = 10000
 RANDOM_SEED = None
 
 def _meets_min_hours(schedule: Schedule) -> bool:
@@ -21,35 +24,80 @@ def _meets_min_hours(schedule: Schedule) -> bool:
 	return True
 
 #main function that generate the schedule
-def generate_schedule(nurses: List[Nurse], seed: int | None = RANDOM_SEED) -> Schedule:
+def generate_schedule(nurses: List[Nurse], seed: int | None = RANDOM_SEED, stream: bool = False) -> Schedule:
 	if seed is not None:
 		random.seed(seed)
 	schedule = Schedule(nurses)
 	day = 1
 	backtrack_count = 0
-	while day <= NUM_DAYS:
-		# Try to fill a single day; backtrack if coverage fails.
-		success = _fill_day(schedule, nurses, day)
-		if success:
-			day += 1
-		else:
-			backtrack_count += 1
-			# lightweight progress logging to help diagnose failures
-			if backtrack_count % 50 == 0:
-				print(f"[generator] backtracks={backtrack_count} at day={day}")
-			if backtrack_count > MAX_BACKTRACK:
-				raise RuntimeError(
-					"Generator failed to build a feasible schedule after "
-					f"{backtrack_count} backtracks (limit {MAX_BACKTRACK}) at day {day}. "
-					"Try increasing MAX_BACKTRACK further, changing the seed, or check your constraints."
+	try:
+		while day <= NUM_DAYS:
+			check_cancelled()
+			# Try to fill a single day; backtrack if coverage fails.
+			success = _fill_day(schedule, nurses, day)
+			if success:
+				emit_trace(
+					schedule,
+					algorithm="CSP Generator",
+					step=day,
+					kind="day",
+					stream=stream,
+					day=day,
+					include_grid=True,
 				)
-			# here we clear the current day and the previous day to undo any bad assignments, then step back one day to retry(here we should use backtracking)
-			_clear_day(schedule, nurses, day)
-			if day > 1:
-				_clear_day(schedule, nurses, day - 1)
-				day -= 1
+				if stream:
+					progress = round(day / NUM_DAYS * 100, 1)
+					emit_progress({
+						"algorithm": "CSP Generator",
+						"day": day,
+						"backtracks": backtrack_count,
+						"currentScore": int(max(0, 1000 - backtrack_count)),
+						"progressPercent": progress,
+					})
+				day += 1
+			else:
+				backtrack_count += 1
+				if backtrack_count % 50 == 0:
+					print(f"[generator] backtracks={backtrack_count} at day={day}")
+					if stream:
+						progress = round(day / NUM_DAYS * 100, 1)
+						emit_progress({
+							"algorithm": "CSP Generator",
+							"day": day,
+							"backtracks": backtrack_count,
+							"progressPercent": progress,
+						})
+				if backtrack_count > MAX_BACKTRACK:
+					if stream:
+						import json
+						print(json.dumps({
+							"type": "error",
+							"algorithm": "CSP Generator",
+							"message": f"Generator failed to build a feasible schedule after {backtrack_count} backtracks."
+						}), flush=True)
+					raise RuntimeError(
+						"Generator failed to build a feasible schedule after "
+						f"{backtrack_count} backtracks (limit {MAX_BACKTRACK}) at day {day}. "
+						"Try increasing MAX_BACKTRACK further, changing the seed, or check your constraints."
+					)
+				_clear_day(schedule, nurses, day)
+				if day > 1:
+					_clear_day(schedule, nurses, day - 1)
+					day -= 1
+	except InterruptedError:
+		if day > 1:
+			return schedule
+		raise
 	# Ensure the final schedule meets the min hours requirement.
 	if not _meets_min_hours(schedule):
+		if stream:
+			import json
+			import sys
+			print(json.dumps({
+				"type": "error",
+				"algorithm": "CSP Generator",
+				"message": "Generator produced a schedule that fails min monthly hours."
+			}), flush=True)
 		raise RuntimeError(
 			"Generator produced a schedule that fails min monthly hours. "
 			"Try increasing MAX_BACKTRACK or relaxing constraints."

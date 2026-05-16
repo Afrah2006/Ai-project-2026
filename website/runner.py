@@ -101,11 +101,7 @@ def build_base_schedule(nurses, seed_to_use: int, max_backtrack: int):
     """Generate the hard-feasible base schedule without polluting stdout."""
     silent_buffer = StringIO()
     with redirect_stdout(silent_buffer):
-        return generate_schedule(
-            nurses,
-            seed=seed_to_use,
-            max_backtrack=max_backtrack,
-        )
+        return generate_schedule(nurses, seed=seed_to_use)
 
 def main():
     parser = argparse.ArgumentParser()

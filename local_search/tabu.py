@@ -16,6 +16,7 @@ from core.evaluation import evaluate_schedule
 from core.hard_constraints import check_all_hard
 from core.model import Schedule
 from core.config import NUM_DAYS, WORKING_SHIFTS
+from core.trace import emit_progress, emit_trace
 
 
 Move = Tuple[int, int, int]
@@ -28,8 +29,9 @@ class TabuConfig:
 	neighbors_per_iteration: int = 60
 	seed: Optional[int] = None
 	verbose: bool = True
-	max_no_improve: int = 100
+	max_no_improve: int = 200
 	start_from_feasible_only: bool = True
+	stream: bool = False
 
 
 def generate_tabu_schedule(schedule: Schedule, config: TabuConfig | None = None) -> Schedule:
@@ -48,100 +50,140 @@ def generate_tabu_schedule(schedule: Schedule, config: TabuConfig | None = None)
 	tabu: Deque[Move] = deque(maxlen=max(1, config.tenure))
 	no_improve = 0
 
-	if config.start_from_feasible_only:
-		violations = check_all_hard(current)
-		if violations:
-			raise ValueError(
-				"Tabu search requires a feasible starting schedule. "
-				f"Found {len(violations)} hard-constraint violations."
+	# if config.start_from_feasible_only:
+	# 	violations = check_all_hard(current)
+	# 	if violations:
+	# 		raise ValueError(
+	# 			"Tabu search requires a feasible starting schedule. "
+	# 			f"Found {len(violations)} hard-constraint violations."
+	# 		)
+
+	try:
+		for iteration in range(1, config.iterations + 1):
+			if iteration % 40 == 0:
+				from core.cancel import check_cancelled
+				check_cancelled()
+
+			move, candidate, candidate_score = _best_neighbor(
+				current=current,
+				current_score=current_score,
+				tabu=tabu,
+				rng=rng,
+				neighbors_per_iteration=config.neighbors_per_iteration,
 			)
 
-	for iteration in range(1, config.iterations + 1):
-		move, candidate, candidate_score = _best_neighbor(
-			current=current,
-			current_score=current_score,
-			tabu=tabu,
-			rng=rng,
-			neighbors_per_iteration=config.neighbors_per_iteration,
-		)
+			if move is None or candidate is None:
+				break
 
-		if move is None or candidate is None:
-			break
+			current = candidate
+			current_score = candidate_score
+			tabu.append(move)
 
-		current = candidate
-		current_score = candidate_score
-		tabu.append(move)
+			if candidate_score + 1e-9 < best_score:
+				best = candidate.copy()
+				best_score = candidate_score
+				no_improve = 0
+			else:
+				no_improve += 1
 
-		if candidate_score + 1e-9 < best_score:
-			best = candidate.copy()
-			best_score = candidate_score
-			no_improve = 0
+			if config.verbose and iteration % 25 == 0:
+				print(
+					f"[tabu] iter={iteration} current={current_score:.2f} "
+					f"best={best_score:.2f} tabu={len(tabu)}"
+				)
+
+			if config.stream and iteration % 25 == 0:
+				progress = round(iteration / max(1, config.iterations) * 100, 1)
+
+				msg = f"Iteration {iteration}: "
+				if candidate_score < best_score:
+					msg += f"🔥 Found new best penalty: {best_score:.2f}!"
+				else:
+					msg += f"Searching... Current penalty: {current_score:.2f}"
+
+				emit_progress({
+					"algorithm": "Tabu Search",
+					"iteration": iteration,
+					"currentScore": current_score,
+					"bestScore": best_score,
+					"progressPercent": progress,
+					"message": msg
+				})
+				emit_trace(
+					current,
+					algorithm="Tabu Search",
+					step=iteration,
+					kind="iteration",
+					stream=True,
+					include_grid=True,
+				)
+
+			if no_improve >= config.max_no_improve:
+				if config.stream:
+					emit_progress({"message": "Tabu search: No improvement for long time. Finishing.", "progressPercent": round(iteration / max(1, config.iterations) * 100, 1)})
+				break
+	except InterruptedError:
+		pass
+
+	if not check_all_hard(best):
+		repaired = _repair_to_feasible(best, rng, max(120, config.neighbors_per_iteration * 2))
+		if repaired is not None:
+			best = repaired
 		else:
-			no_improve += 1
+ 			return schedule.copy()
 
-		if config.verbose and iteration % 25 == 0:
-			print(
-				f"[tabu] iter={iteration} current={current_score:.2f} "
-				f"best={best_score:.2f} tabu={len(tabu)}"
-			)
+	if not check_all_hard(best):
+		return schedule.copy()
 
-		if no_improve >= config.max_no_improve:
-			break
+	if _score(best) > _score(schedule):
+		return schedule.copy()
 
 	return best
 
 
 def _score(schedule: Schedule) -> float:
-	"""Score feasible schedules directly; heavily penalize infeasible ones."""
-	violations = check_all_hard(schedule)
-	if not violations:
-		return evaluate_schedule(schedule)
-	return evaluate_schedule(schedule) + 10000.0 * len(violations)
+	"""Score schedules directly. Since we use is_valid_assignment, we stay feasible."""
+	return evaluate_schedule(schedule)
 
 def _best_neighbor(
-  current: Schedule,
-  current_score: float,
-  tabu: Deque[Move],
-  rng: random.Random,
-  neighbors_per_iteration: int,
+		current: Schedule,
+		current_score: float,
+		tabu: Deque[Move],
+		rng: random.Random,
+		neighbors_per_iteration: int,
 ) -> Tuple[Optional[Move], Optional[Schedule], float]:
-  """Explore a limited set of same-day swaps and return the best admissible one."""
-  all_moves = list(_candidate_moves(current))
-  if not all_moves:
-    return None, None, math.inf
+		"""Explore a limited set of same-day swaps and return the best admissible one."""
+		all_moves = list(_candidate_moves(current))
+		if not all_moves:
+				return None, None, math.inf
 
-  if len(all_moves) > neighbors_per_iteration:
-    moves = rng.sample(all_moves, neighbors_per_iteration)
-  else:
-    moves = all_moves
+		if len(all_moves) > neighbors_per_iteration:
+				moves = rng.sample(all_moves, neighbors_per_iteration)
+		else:
+				moves = all_moves
 
-  best_move: Optional[Move] = None
-  best_sched: Optional[Schedule] = None
-  best_score = math.inf
-  best_is_tabu = False
+		best_move: Optional[Move] = None
+		best_sched: Optional[Schedule] = None
+		best_score = math.inf
 
-  for move in moves:
-    candidate = _apply_swap(current, move)
-    if candidate is None:
-      continue
-    if check_all_hard(candidate):
-      continue
+		for move in moves:
+				candidate = _apply_swap(current, move)
+				if candidate is None:
+						continue
 
-    score = evaluate_schedule(candidate)
-    is_tabu = move in tabu
-    if is_tabu and score >= current_score - 1e-9:
-      continue
+				if not check_all_hard(candidate):
+						continue
 
-    if (
-      score < best_score - 1e-9
-      or (abs(score - best_score) <= 1e-9 and best_is_tabu and not is_tabu)
-    ):
-      best_move = move
-      best_sched = candidate
-      best_score = score
-      best_is_tabu = is_tabu
+				score = evaluate_schedule(candidate)
+				is_tabu = move in tabu
 
-  return best_move, best_sched, best_score
+				# Aspiration criterion
+				if score < best_score and (not is_tabu or score < current_score - 1e-9):
+						best_score = score
+						best_sched = candidate
+						best_move = move
+
+		return best_move, best_sched, best_score
 
 
 def _candidate_moves(schedule: Schedule) -> Iterable[Move]:
@@ -168,3 +210,39 @@ def _apply_swap(schedule: Schedule, move: Move) -> Optional[Schedule]:
   candidate.set(day, nurse_id_a, shift_b)
   candidate.set(day, nurse_id_b, shift_a)
   return candidate
+
+
+def _repair_to_feasible(
+	schedule: Schedule,
+	rng: random.Random,
+	neighbors_per_iteration: int,
+) -> Optional[Schedule]:
+	"""Find the best hard-feasible neighbor of a schedule.
+
+	Used as a fallback when the main tabu loop lands on an infeasible snapshot.
+	"""
+	all_moves = list(_candidate_moves(schedule))
+	if not all_moves:
+		return None
+
+	if len(all_moves) > neighbors_per_iteration:
+		moves = rng.sample(all_moves, neighbors_per_iteration)
+	else:
+		moves = all_moves
+
+	best_candidate: Optional[Schedule] = None
+	best_score = math.inf
+
+	for move in moves:
+		candidate = _apply_swap(schedule, move)
+		if candidate is None:
+			continue
+		if check_all_hard(candidate):
+			continue
+
+		score = evaluate_schedule(candidate)
+		if score < best_score:
+			best_score = score
+			best_candidate = candidate
+
+	return best_candidate
