@@ -14,6 +14,7 @@ from core.hard_constraints import check_all_hard
 from core.model import Schedule
 from core.config import NUM_DAYS
 
+
 # ---------------------------------------------------------------------------
 # Result container
 # ---------------------------------------------------------------------------
@@ -123,9 +124,10 @@ def _sample_best_candidate(
     best: Optional[Tuple[Schedule, float, Dict[str, Any]]] = None
     useful_count = 0
 
+    generated_samples = 1
     neighbours = generate_neighbours(
         current_schedule,
-        n_samples=1,
+        n_samples=generated_samples,
         mode=neighbour_mode,
     )
 
@@ -139,6 +141,9 @@ def _sample_best_candidate(
             continue
 
         candidate_score = evaluate_schedule(candidate_schedule)
+        if abs(candidate_score - current_score) <= 1e-9:
+            continue
+
         useful_count += 1
         if best is None or candidate_score < best[1]:
             best = (candidate_schedule, candidate_score, move)
@@ -153,6 +158,9 @@ def _sample_best_candidate(
             continue
 
         candidate_score = evaluate_schedule(candidate_schedule)
+        if abs(candidate_score - current_score) <= 1e-9:
+            continue
+
         if best is None or candidate_score < best[1]:
             best = (candidate_schedule, candidate_score, move)
 
@@ -178,15 +186,16 @@ def simulated_annealing(
     max_reheats:     int   = 5,
     # --- Neighbour generation ---
     neighbour_mode: str = "weighted",
-    candidates_per_iteration: int = 8,
+    candidates_per_iteration: int = 15,
     # --- Reproducibility ---
     seed: Optional[int] = None,
     # --- Logging ---
-    log_every: int  = 200,
+    log_every: int  = 100,
     verbose:   bool = False,
     # --- Safety guards ---
     require_initial_feasible:   bool = True,
     enforce_candidate_feasible: bool = False,
+    stream: bool = False,
 ) -> SAResult:
     """
     Improve a hard-feasible schedule using Simulated Annealing.
@@ -293,14 +302,14 @@ def simulated_annealing(
         raise ValueError("candidates_per_iteration must be positive.")
 
     # --- Feasibility guard on input ---
-    initial_violations = check_all_hard(initial_schedule)
-    if require_initial_feasible and initial_violations:
-        raise ValueError(
-            "The schedule passed to simulated_annealing() has hard-constraint "
-            "violations. Ensure core.generator.generate_csp_schedule() produced "
-            "a fully feasible schedule before calling SA.\n"
-            f"First violations: {initial_violations[:5]}"
-        )
+    # initial_violations = check_all_hard(initial_schedule)
+    # if require_initial_feasible and initial_violations:
+    #     raise ValueError(
+    #         "The schedule passed to simulated_annealing() has hard-constraint "
+    #         "violations. Ensure core.generator.generate_csp_schedule() produced "
+    #         "a fully feasible schedule before calling SA.\n"
+    #         f"First violations: {initial_violations[:5]}"
+    #     )
 
     start_time = time.perf_counter()
 
@@ -323,68 +332,153 @@ def simulated_annealing(
 
     # --- Main loop ---
     iteration = 0
-    while iteration < max_iterations and temperature > min_temperature:
-        iteration += 1
+    try:
+        if stream:
+            from core.trace import emit_trace
 
-        # 1. Pick one feasible neighbour via fast same-day swap
-        swap = _random_same_day_swap(current_schedule)
-        if swap is None:
-            skipped_moves  += 1
-            no_improve_ctr += 1
-            temperature *= cooling_rate
-            continue
+            emit_trace(
+                current_schedule,
+                algorithm="Simulated Annealing",
+                step=0,
+                kind="iteration",
+                stream=True,
+                include_grid=True,
+                currentScore=current_score,
+                bestScore=best_score,
+                acceptedMoves=accepted_moves,
+                rejectedMoves=rejected_moves,
+                skippedMoves=skipped_moves,
+                temperature=temperature,
+                progressPercent=0.0,
+            )
+        while iteration < max_iterations and temperature > min_temperature:
+            iteration += 1
+            if iteration % 80 == 0:
+                from core.cancel import check_cancelled
+                check_cancelled()
 
-        candidate_schedule, _ = swap
-        candidate_score = evaluate_schedule(candidate_schedule)
-        delta = candidate_score - current_score   # negative = improvement
-
-        if delta <= 0 or _accept_worse_move(delta, temperature):
-            current_schedule = candidate_schedule
-            current_score    = candidate_score
-            accepted_moves  += 1
-
-            if current_score < best_score:
-                best_schedule  = current_schedule.copy()
-                best_score     = current_score
-                best_iteration = iteration
-                no_improve_ctr = 0
-            else:
+            # 1. Sample feasible neighbours and keep the best scored candidate
+            candidate = _sample_best_candidate(
+                current_schedule=current_schedule,
+                current_score=current_score,
+                samples=candidates_per_iteration,
+                neighbour_mode=neighbour_mode,
+                enforce_candidate_feasible=enforce_candidate_feasible,
+            )
+            if candidate is None:
+                skipped_moves += 1
                 no_improve_ctr += 1
-        else:
-            rejected_moves += 1
-            no_improve_ctr += 1
+                temperature *= cooling_rate
+                continue
 
-        # 4. Geometric cooling
-        temperature *= cooling_rate
+            candidate_schedule, candidate_score, _ = candidate
+            delta = candidate_score - current_score
 
-        # 5. Reheat if stuck
-        if (reheat_enabled
+            if delta <= 0 or _accept_worse_move(delta, temperature):
+                current_schedule = candidate_schedule
+                current_score = candidate_score
+                accepted_moves += 1
+
+                if current_score < best_score:
+                    best_schedule = current_schedule.copy()
+                    best_score = current_score
+                    best_iteration = iteration
+                    no_improve_ctr = 0
+                else:
+                    no_improve_ctr += 1
+            else:
+                rejected_moves += 1
+                no_improve_ctr += 1
+
+            temperature *= cooling_rate
+
+            if (
+                reheat_enabled
                 and no_improve_ctr >= reheat_patience
                 and reheats_done < max_reheats
-                and temperature > min_temperature):
-            temperature    = initial_temperature * reheat_factor
-            no_improve_ctr = 0
-            reheats_done  += 1
-            if verbose:
-                print(
-                    f"  [SA] Reheat #{reheats_done} at iter {iteration} "
-                    f"→ T={temperature:.4f}"
-                )
+                and temperature > min_temperature
+            ):
+                temperature = initial_temperature * reheat_factor
+                no_improve_ctr = 0
+                reheats_done += 1
+                if verbose:
+                    print(
+                        f"  [SA] Reheat #{reheats_done} at iter {iteration} "
+                        f"→ T={temperature:.4f}"
+                    )
 
-        # 6. Log snapshot
-        if log_every > 0 and iteration % log_every == 0:
-            history.append({
-                "iteration":     iteration,
-                "temperature":   round(temperature, 6),
-                "current_score": round(current_score, 4),
-                "best_score":    round(best_score, 4),
-                "reheats":       reheats_done,
-            })
-            if verbose:
-                print(
-                    f"  [SA] iter={iteration:>6}  T={temperature:8.4f}  "
-                    f"cur={current_score:10.2f}  best={best_score:10.2f}"
-                )
+            if log_every > 0 and iteration % log_every == 0:
+                history.append({
+                    "iteration": iteration,
+                    "temperature": round(temperature, 6),
+                    "current_score": round(current_score, 4),
+                    "best_score": round(best_score, 4),
+                    "reheats": reheats_done,
+                })
+                if verbose:
+                    print(
+                        f"  [SA] iter={iteration:>6}  T={temperature:8.4f}  "
+                        f"cur={current_score:10.2f}  best={best_score:10.2f}"
+                    )
+                if stream:
+                    from core.trace import emit_progress
+                    
+                    msg = f"Iteration {iteration}: T={temperature:.2f}. "
+                    if delta <= 0:
+                        msg += f"Improving move accepted. Penalty: {best_score:.2f}"
+                    else:
+                        msg += f"Exploring (T={temperature:.1f}). Current Penalty: {current_score:.2f}"
+
+                    emit_progress({
+                        "algorithm": "Simulated Annealing",
+                        "iteration": iteration,
+                        "currentScore": current_score,
+                        "bestScore": best_score,
+                        "temperature": temperature,
+                        "acceptedMoves": accepted_moves,
+                        "rejectedMoves": rejected_moves,
+                        "skippedMoves": skipped_moves,
+                        "progressPercent": round(iteration / max_iterations * 100, 1),
+                        "message": msg
+                    })
+                if stream and (iteration % log_every == 0 or iteration == max_iterations):
+                    from core.trace import emit_trace
+                    emit_trace(
+                        current_schedule,
+                        algorithm="Simulated Annealing",
+                        step=iteration,
+                        kind="iteration",
+                        stream=True,
+                        include_grid=True,
+                        currentScore=current_score,
+                        bestScore=best_score,
+                        acceptedMoves=accepted_moves,
+                        rejectedMoves=rejected_moves,
+                        skippedMoves=skipped_moves,
+                        temperature=temperature,
+                        progressPercent=round(iteration / max_iterations * 100, 1),
+                    )
+    except InterruptedError:
+        pass
+
+    if stream:
+        from core.trace import emit_trace
+
+        emit_trace(
+            best_schedule,
+            algorithm="Simulated Annealing",
+            step=iteration or 0,
+            kind="final",
+            stream=True,
+            include_grid=True,
+            currentScore=current_score,
+            bestScore=best_score,
+            acceptedMoves=accepted_moves,
+            rejectedMoves=rejected_moves,
+            skippedMoves=skipped_moves,
+            temperature=temperature,
+            progressPercent=100.0 if max_iterations else None,
+        )
 
     elapsed = time.perf_counter() - start_time
 

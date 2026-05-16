@@ -1,8 +1,18 @@
 from core.model import Schedule
 from core.config import HARD, SHIFTS, WEIGHTS, WORKING_SHIFTS
 from utils.fairness_metrics import compute_fairness_metrics
+
+def calculate_display_score(schedule: Schedule, penalty: float | None = None) -> float:
+    """Return raw penalty directly as requested."""
+    if penalty is None:
+        penalty = evaluate_schedule(schedule)
+    return penalty
+
 def evaluate_schedule(schedule: Schedule) -> float:
-    score = 0.0
+    from core.hard_constraints import check_all_hard
+    violations = check_all_hard(schedule)
+    score = len(violations) * 500.0 # Heavy penalty for each hard violation
+
 
     requested_day_off_1={x: [] for x in range(1,8)}
     requested_day_off_2={x: [] for x in range(1,8)}

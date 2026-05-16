@@ -4,6 +4,7 @@ from core.config import (
     FORBIDDEN_TRANSITIONS, HARD
 )
 from core.hard_constraints import _count_streak_before
+from core.evaluation import evaluate_schedule
 
 
 
@@ -85,10 +86,13 @@ def _score_nurse(schedule: Schedule, day: int, day_of_week: int,
     return (forced, requested_off, hours, work_streak, night_continuity)
 
 
-def generate_greedy_schedule(schedule: Schedule) -> Schedule:
-   
+def generate_greedy_schedule(schedule: Schedule, stream: bool = False) -> Schedule:
+    from core.cancel import check_cancelled
+    from core.trace import emit_trace
 
-    for day in range(1, NUM_DAYS + 1):
+    try:
+      for day in range(1, NUM_DAYS + 1):
+        check_cancelled()
         day_of_week = (day - 1) % 7 + 1
         assigned_today: set[int] = set()
 
@@ -150,7 +154,7 @@ def generate_greedy_schedule(schedule: Schedule) -> Schedule:
 
             requested_off = (nurse.day_off1 == day_of_week
                              or nurse.day_off2 == day_of_week)
-            preferred_rest = 'O'
+            preferred_rest = 'O' if requested_off else 'F'
 
             if is_valid_for_greedy(schedule, day, nurse.nurse_id, preferred_rest):
                
@@ -190,5 +194,26 @@ def generate_greedy_schedule(schedule: Schedule) -> Schedule:
                     schedule.set(day, nurse.nurse_id, preferred_rest)
 
             assigned_today.add(nurse.nurse_id)
+
+        emit_trace(
+            schedule,
+            algorithm="Greedy",
+            step=day,
+            kind="day",
+            stream=stream,
+            day=day,
+            include_grid=True,
+        )
+        if stream:
+            from core.trace import emit_progress
+
+            emit_progress({
+                "algorithm": "Greedy",
+                "day": day,
+                "currentScore": evaluate_schedule(schedule),
+                "progressPercent": round(day / NUM_DAYS * 100, 1),
+            })
+    except InterruptedError:
+        pass
 
     return schedule
