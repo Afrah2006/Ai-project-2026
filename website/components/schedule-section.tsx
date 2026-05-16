@@ -4,10 +4,19 @@ import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sun, Moon, Sunset, Minus, Upload, Play, RotateCcw, Download, Edit3, Check } from "lucide-react";
+import { Sun, Moon, Sunset, Minus, Upload, Play, RotateCcw, Download, Edit3, Check, AlertTriangle } from "lucide-react";
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useSchedule, type ShiftType, type Nurse } from "@/lib/schedule-context";
-import { runSimulatedAnnealing, runTabuSearch, runGreedy, runCSP, runAllSchedulers } from "@/lib/algorithms";
+import {
+  runSimulatedAnnealing,
+  runTabuSearch,
+  runGreedy,
+  runCSP,
+  runAllSchedulers,
+  AlgorithmCancelledError,
+} from "@/lib/algorithms";
+import { AlgorithmTracePlayer } from "@/components/algorithm-trace-player";
+import { Square } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -31,7 +40,81 @@ const algorithms = [
 ];
 
 export function ScheduleSection() {
-  const { nurses, setNurses, results, selectedResult, setSelectedResult, addResult, addResults, clearResults, updateShift, isLoading, setIsLoading } = useSchedule();
+  const {
+    nurses,
+    setNurses,
+    results,
+    selectedResult,
+    setSelectedResult,
+    addResult,
+    addResults,
+    clearResults,
+    updateShift,
+    runStatus,
+    setRunStatus,
+    runMessage,
+    setRunMessage,
+    abortController,
+    setAbortController,
+    stopAlgorithm,
+    currentIteration,
+    setCurrentIteration,
+    currentScore,
+    setCurrentScore,
+    currentPhase,
+    setCurrentPhase,
+    currentMessage,
+    setCurrentMessage,
+    logEntries,
+    appendLog,
+    traceSnapshots,
+    appendTrace,
+    clearTraces,
+  } = useSchedule();
+
+  const isLoading = runStatus === "running" || runStatus === "stopping";
+  const [currentProgress, setCurrentProgress] = useState<number | null>(null);
+
+  const normalizeProgress = (data: Record<string, unknown>) => {
+    const direct = Number(data.progressPercent);
+    if (Number.isFinite(direct)) return Math.max(0, Math.min(100, direct));
+
+    const current = Number(data.iteration ?? data.day ?? data.runIndex);
+    const total = Number(data.totalIterations ?? data.totalDays ?? data.totalRuns);
+    if (Number.isFinite(current) && Number.isFinite(total) && total > 0) {
+      return Math.max(0, Math.min(100, (current / total) * 100));
+    }
+
+    return null;
+  };
+
+  const progressHandlers = {
+    onProgress: (data: Record<string, unknown>) => {
+      if (data.iteration !== undefined) setCurrentIteration(Number(data.iteration));
+      if (data.day !== undefined) setCurrentIteration(Number(data.day));
+      if (data.currentScore !== undefined) setCurrentScore(Number(data.currentScore));
+      if (data.bestScore !== undefined) setCurrentScore(Number(data.bestScore));
+      if (data.message) {
+        setCurrentMessage(String(data.message));
+        appendLog(String(data.message));
+      }
+      if (data.phase === "algorithm_start" && data.algorithm) {
+        setCurrentPhase(String(data.algorithm));
+        setRunMessage(`Running ${String(data.algorithm).toUpperCase()}…`);
+        appendLog(`🚀 Starting ${String(data.algorithm)}...`);
+      }
+      const progress = normalizeProgress(data);
+      if (progress !== null) {
+        setCurrentProgress(progress);
+      }
+      if (data.type === "batch_progress") {
+        setRunMessage(
+          `Batch ${data.algorithm}: run ${data.runIndex}/${data.totalRuns}`
+        );
+      }
+    },
+    onTrace: appendTrace,
+  };
   const [selectedAlgorithm, setSelectedAlgorithm] = useState("sa");
   const [editMode, setEditMode] = useState(false);
   const [editingCell, setEditingCell] = useState<{ nurse: number; day: number } | null>(null);
@@ -105,43 +188,89 @@ export function ScheduleSection() {
   }, [setNurses, clearResults]);
 
   const runAlgorithm = useCallback(async () => {
-    setIsLoading(true);
+    setRunStatus("running");
+    setRunMessage("Starting solver…");
+    setCurrentMessage("Initializing…");
+    setCurrentIteration(null);
+    setCurrentScore(null);
+    setCurrentPhase(null);
+    setCurrentProgress(null);
+    clearTraces();
+    const controller = new AbortController();
+    setAbortController(controller);
+
     try {
       const algorithm = algorithms.find((a) => a.id === selectedAlgorithm);
       if (algorithm) {
-        const result = await algorithm.run(nurses);
+        setRunMessage(`Running ${algorithm.name}…`);
+        const result = await algorithm.run(nurses, {
+          signal: controller.signal,
+          ...progressHandlers,
+        });
         addResult(result);
+        setRunStatus(result.cancelled ? "cancelled" : "completed");
+        setRunMessage(result.cancelled ? "Cancelled — partial schedule saved" : "Schedule ready");
       }
-    } catch (error) {
-      console.error(error);
-      alert("Failed to run algorithm. Please check the console.");
+    } catch (error: unknown) {
+      if (error instanceof AlgorithmCancelledError) {
+        if (error.partialResult) addResult(error.partialResult);
+        setRunStatus("cancelled");
+        setRunMessage("Run cancelled — partial results kept where available");
+      } else if (error instanceof Error && error.name === "AbortError") {
+        setRunStatus("cancelled");
+        setRunMessage("Run cancelled");
+      } else {
+        console.error(error);
+        setRunStatus("error");
+        setRunMessage(error instanceof Error ? error.message : "Unknown error");
+      }
     } finally {
-      setIsLoading(false);
+      setAbortController(null);
+      setCurrentPhase(null);
     }
-  }, [selectedAlgorithm, nurses, addResult, setIsLoading]);
+  }, [selectedAlgorithm, nurses, addResult, setRunStatus, setRunMessage, setAbortController, setCurrentIteration, setCurrentScore, clearTraces, appendTrace]);
 
   const runAllAlgorithms = useCallback(async () => {
-    setIsLoading(true);
     clearResults();
+    clearTraces();
+    setRunStatus("running");
+    setRunMessage("Comparing all algorithms sequentially…");
+    setCurrentProgress(null);
+    const controller = new AbortController();
+    setAbortController(controller);
+
     try {
       const order = algorithms.map((a) => a.id);
-      const { results: batch, errors } = await runAllSchedulers(nurses, order);
-      if (batch.length > 0) {
-        addResults(batch);
-      }
-      if (errors?.length) {
-        console.warn("Some schedulers failed:", errors);
-      }
-      if (batch.length === 0) {
-        alert("All algorithms failed to run. Check the server console and Python setup.");
+      const { results: batch, errors, cancelled } = await runAllSchedulers(nurses, order, {
+        signal: controller.signal,
+        ...progressHandlers,
+      });
+      if (batch.length > 0) addResults(batch);
+      if (errors?.length) console.warn("Some schedulers failed:", errors);
+      if (cancelled) {
+        setRunStatus("cancelled");
+        setRunMessage("Compare run cancelled — partial results kept");
+      } else if (batch.length === 0) {
+        setRunStatus("error");
+        setRunMessage("All algorithms failed. Check Python is installed and run npm run dev from website/");
+      } else {
+        setRunStatus("completed");
+        setRunMessage(`Compared ${batch.length} algorithm(s)`);
       }
     } catch (error) {
-      console.error(error);
-      alert("Failed to run algorithms. Please check the console.");
+      if (error instanceof Error && (error.name === "AbortError" || error instanceof AlgorithmCancelledError)) {
+        setRunStatus("cancelled");
+        setRunMessage("Compare run cancelled");
+      } else {
+        console.error(error);
+        setRunStatus("error");
+        setRunMessage(error instanceof Error ? error.message : "Failed to run algorithms");
+      }
     } finally {
-      setIsLoading(false);
+      setAbortController(null);
+      setCurrentPhase(null);
     }
-  }, [nurses, addResults, clearResults, setIsLoading]);
+  }, [nurses, addResults, clearResults, clearTraces, setRunStatus, setRunMessage, setAbortController, appendTrace]);
 
   const handleCellClick = (nurseIndex: number, dayIndex: number) => {
     if (editMode && selectedResult) {
@@ -185,7 +314,7 @@ export function ScheduleSection() {
   const displayDays = 28;
 
   return (
-    <section id="schedule" className="py-24 bg-card/30">
+    <section id="schedule" className="py-24 relative">
       <div className="max-w-[95vw] xl:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -194,7 +323,7 @@ export function ScheduleSection() {
           transition={{ duration: 0.6 }}
           className="text-center mb-12"
         >
-          <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
+          <h2 className="text-3xl sm:text-4xl font-bold font-heading text-foreground mb-4 tracking-tight">
             Interactive Schedule Generator
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
@@ -223,6 +352,8 @@ export function ScheduleSection() {
                   accept=".csv"
                   ref={fileInputRef}
                   onChange={handleFileUpload}
+                  title="Upload nurse roster CSV"
+                  placeholder="Upload roster CSV"
                   className="hidden"
                 />
                 <Button
@@ -237,7 +368,7 @@ export function ScheduleSection() {
                 {/* Dataset Selection */}
                 {datasets.length > 0 && (
                   <Select value={selectedDatasetIndex} onValueChange={handleDatasetChange}>
-                    <SelectTrigger className="w-[200px]">
+                      <SelectTrigger className="w-50">
                       <SelectValue placeholder="Select dataset" />
                     </SelectTrigger>
                     <SelectContent>
@@ -252,7 +383,7 @@ export function ScheduleSection() {
 
                 {/* Algorithm Selection */}
                 <Select value={selectedAlgorithm} onValueChange={setSelectedAlgorithm}>
-                  <SelectTrigger className="w-[200px]">
+                  <SelectTrigger className="w-50">
                     <SelectValue placeholder="Select algorithm" />
                   </SelectTrigger>
                   <SelectContent>
@@ -328,10 +459,127 @@ export function ScheduleSection() {
               <div className="absolute inset-0 border-4 border-muted rounded-full"></div>
               <div className="absolute inset-0 border-4 border-primary rounded-full border-t-transparent animate-spin"></div>
             </div>
-            <h3 className="text-xl font-bold text-foreground animate-pulse">Running Optimization Algorithms...</h3>
-            <p className="text-muted-foreground mt-2 text-center max-w-sm">
-              Please wait while the scheduling engine searches the solution space for the optimal nurse schedule.
+            <h3 className="text-xl font-heading font-bold text-foreground">
+              {runStatus === "stopping" ? "Stopping…" : "Solver running"}
+            </h3>
+            <p className="text-sm text-primary/90 mt-1">{runMessage}</p>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+              <span className="rounded-full border border-border/70 bg-secondary/50 px-3 py-1">
+                Status: <strong className="text-foreground">{runStatus}</strong>
+              </span>
+              <span className="rounded-full border border-border/70 bg-secondary/50 px-3 py-1">
+                Phase: <strong className="text-foreground">{currentPhase ?? selectedAlgorithm.toUpperCase()}</strong>
+              </span>
+              {currentProgress !== null && (
+                <span className="rounded-full border border-border/70 bg-secondary/50 px-3 py-1">
+                  Progress: <strong className="text-foreground">{Math.round(currentProgress)}%</strong>
+                </span>
+              )}
+            </div>
+            
+            {/* Progress Visualization */}
+            {(currentIteration !== null || currentScore !== null) && (
+              <div className="mt-4 text-center">
+                <div className="flex gap-4 justify-center text-sm font-medium text-muted-foreground mb-4">
+                  {currentIteration !== null && (
+                    <span className="bg-secondary px-3 py-1 rounded-full">Iteration: <strong className="text-foreground">{currentIteration}</strong></span>
+                  )}
+                  {currentScore !== null && (
+                    <span className="bg-secondary px-3 py-1 rounded-full">Evaluation Score: <strong className="text-foreground">{currentScore}</strong></span>
+                  )}
+                </div>
+                {currentMessage && (
+                  <p className="text-xs text-muted-foreground animate-pulse mb-4 max-w-md mx-auto line-clamp-1">
+                    {currentMessage}
+                  </p>
+                )}
+                {currentProgress !== null && (
+                  <div className="max-w-md mx-auto space-y-2">
+                    <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-muted-foreground">
+                      <span>Progress</span>
+                      <span>{Math.round(currentProgress)}%</span>
+                    </div>
+                    <progress
+                      value={currentProgress}
+                      max={100}
+                      className="h-2 w-full overflow-hidden rounded-full accent-primary"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Live Trace Log */}
+            {logEntries.length > 0 && runStatus === "running" && (
+              <div className="w-full max-w-md mt-2 px-4">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 text-center opacity-70">Live Optimization Log</div>
+                <div className="space-y-1.5 font-mono text-[10px] h-24 overflow-hidden relative">
+                  <div className="absolute inset-x-0 bottom-0 h-8 bg-linear-to-t from-card to-transparent pointer-events-none" />
+                  {logEntries.slice(0, 5).map((log, idx) => (
+                    <motion.div 
+                      key={`${idx}-${log}`}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1 - idx * 0.2, x: 0 }}
+                      className="flex gap-2 text-muted-foreground whitespace-nowrap overflow-hidden"
+                    >
+                      <span className="text-primary/40">[{new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}]</span>
+                      <span className="truncate">{log}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {traceSnapshots.length > 0 && (
+              <motion.div layout className="w-full max-w-3xl mt-8 px-4">
+                <AlgorithmTracePlayer traces={traceSnapshots} />
+              </motion.div>
+            )}
+            {abortController && runStatus === "running" && (
+              <Button variant="destructive" onClick={stopAlgorithm} className="mt-8 gap-2">
+                <Square className="size-4 fill-current" />
+                Stop
+              </Button>
+            )}
+          </motion.div>
+        )}
+
+        {!isLoading && traceSnapshots.length > 0 && selectedResult && (
+          <motion.div layout className="mb-8">
+            <AlgorithmTracePlayer traces={traceSnapshots} />
+          </motion.div>
+        )}
+
+        {!isLoading && runStatus === "error" && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="mb-8 p-6 rounded-xl border border-destructive/50 bg-destructive/10 flex flex-col items-center text-center shadow-lg"
+          >
+            <div className="size-12 rounded-full bg-destructive/20 flex items-center justify-center mb-4">
+              <AlertTriangle className="size-6 text-destructive" />
+            </div>
+            <h3 className="text-lg font-bold text-foreground mb-2">Optimization Failed</h3>
+            <p className="text-sm text-muted-foreground max-w-md mb-6">
+              {runMessage || "The solver encountered an unexpected error while processing the schedule."}
             </p>
+            <Button 
+              variant="outline" 
+              onClick={() => { setRunStatus("idle"); setRunMessage(null); }}
+              className="border-destructive/30 hover:bg-destructive/20"
+            >
+              Dismiss
+            </Button>
+          </motion.div>
+        )}
+
+        {!isLoading && runStatus === "cancelled" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="mb-6 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
+          >
+            {runMessage || "Last run was cancelled."}
           </motion.div>
         )}
 
@@ -419,16 +667,16 @@ export function ScheduleSection() {
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1400px]">
+                  <table className="w-full min-w-350">
                     <thead>
                       <tr className="border-b border-border">
-                        <th className="p-2 text-left text-xs font-semibold text-foreground bg-secondary sticky left-0 z-20 min-w-[120px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                        <th className="p-2 text-left text-xs font-semibold text-foreground bg-secondary sticky left-0 z-20 min-w-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                           Nurse
                         </th>
                         {Array.from({ length: displayDays }, (_, i) => (
                           <th
                             key={i}
-                            className="p-1 text-center text-xs font-semibold text-foreground bg-secondary/50 min-w-[40px]"
+                            className="p-1 text-center text-xs font-semibold text-foreground bg-secondary/50 min-w-10"
                           >
                             <div>{i + 1}</div>
                             <div className="text-[10px] font-normal text-muted-foreground">
@@ -436,10 +684,10 @@ export function ScheduleSection() {
                             </div>
                           </th>
                         ))}
-                        <th className="p-2 text-center text-xs font-semibold text-foreground bg-secondary/50 min-w-[50px]">
+                        <th className="p-2 text-center text-xs font-semibold text-foreground bg-secondary/50 min-w-12.5">
                           Hours
                         </th>
-                        <th className="p-2 text-center text-xs font-semibold text-foreground bg-secondary/50 min-w-[50px]">
+                        <th className="p-2 text-center text-xs font-semibold text-foreground bg-secondary/50 min-w-12.5">
                           Nights
                         </th>
                       </tr>
@@ -480,6 +728,8 @@ export function ScheduleSection() {
                                             e.stopPropagation();
                                             handleShiftChange(s);
                                           }}
+                                            aria-label={`Set shift to ${s}`}
+                                            title={`Set shift to ${s}`}
                                           className={`p-1 rounded border ${c.bgColor} hover:scale-110 transition-transform`}
                                         >
                                           <I className={`size-3 ${c.color}`} />

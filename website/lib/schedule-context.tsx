@@ -1,14 +1,36 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback, useRef } from "react";
 
-export type ShiftType = "D" | "L" | "N" | "O"; // Day, Late, Night, Off
+export type ShiftType = "D" | "L" | "N" | "O";
+
+export type RunStatus = "idle" | "running" | "stopping" | "cancelled" | "completed" | "error";
 
 export interface Nurse {
   id: string;
   name: string;
   isSenior: boolean;
-  dayOffRequests: number[]; // days 1-7 (first week)
+  dayOffRequests: number[];
+}
+
+export interface TraceSnapshot {
+  type: "trace";
+  algorithm: string;
+  step: number;
+  kind: string;
+  day?: number;
+  score: number;
+  hardViolations: number;
+  penalty?: number;
+  currentScore?: number;
+  bestScore?: number;
+  acceptedMoves?: number;
+  rejectedMoves?: number;
+  skippedMoves?: number;
+  temperature?: number;
+  progressPercent?: number;
+  dailyCoverage?: { day: number; D: number; L: number; N: number; required: number }[];
+  schedule?: ShiftType[][];
 }
 
 export interface ScheduleResult {
@@ -20,6 +42,8 @@ export interface ScheduleResult {
   executionTime: number;
   hoursPerNurse: number[];
   nightShiftsPerNurse: number[];
+  convergenceData?: { iteration: number; score: number }[];
+  cancelled?: boolean;
 }
 
 interface ScheduleContextType {
@@ -27,19 +51,36 @@ interface ScheduleContextType {
   setNurses: (nurses: Nurse[]) => void;
   results: ScheduleResult[];
   addResult: (result: ScheduleResult) => void;
-  /** Append many results in one update (faster than repeated addResult). */
   addResults: (newResults: ScheduleResult[]) => void;
   clearResults: () => void;
   selectedResult: ScheduleResult | null;
   setSelectedResult: (result: ScheduleResult | null) => void;
   updateShift: (nurseIndex: number, dayIndex: number, shift: ShiftType) => void;
-  isLoading: boolean;
-  setIsLoading: (loading: boolean) => void;
+  runStatus: RunStatus;
+  setRunStatus: (s: RunStatus) => void;
+  runMessage: string | null;
+  setRunMessage: (m: string | null) => void;
+  abortController: AbortController | null;
+  setAbortController: (ctrl: AbortController | null) => void;
+  stopAlgorithm: () => void;
+  currentIteration: number | null;
+  setCurrentIteration: (iter: number | null) => void;
+  currentScore: number | null;
+  setCurrentScore: (score: number | null) => void;
+  currentPhase: string | null;
+  setCurrentPhase: (p: string | null) => void;
+  currentMessage: string | null;
+  setCurrentMessage: (m: string | null) => void;
+  logEntries: string[];
+  appendLog: (msg: string) => void;
+  traceSnapshots: TraceSnapshot[];
+  setTraceSnapshots: React.Dispatch<React.SetStateAction<TraceSnapshot[]>>;
+  appendTrace: (t: TraceSnapshot) => void;
+  clearTraces: () => void;
 }
 
 const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined);
 
-// Default project dataset (from data_ai_project.csv)
 const defaultNurses: Nurse[] = [
   { id: "nurse-1", name: "IMAN BEBOUDI", isSenior: false, dayOffRequests: [2, 2] },
   { id: "nurse-2", name: "NDJATE BEDBOUDI", isSenior: false, dayOffRequests: [1, 5] },
@@ -72,7 +113,43 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   const [nurses, setNurses] = useState<Nurse[]>(defaultNurses);
   const [results, setResults] = useState<ScheduleResult[]>([]);
   const [selectedResult, setSelectedResult] = useState<ScheduleResult | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [runStatus, setRunStatus] = useState<RunStatus>("idle");
+  const [runMessage, setRunMessage] = useState<string | null>(null);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [currentIteration, setCurrentIteration] = useState<number | null>(null);
+  const [currentScore, setCurrentScore] = useState<number | null>(null);
+  const [currentPhase, setCurrentPhase] = useState<string | null>(null);
+  const [currentMessage, setCurrentMessage] = useState<string | null>(null);
+  const [logEntries, setLogEntries] = useState<string[]>([]);
+  const [traceSnapshots, setTraceSnapshots] = useState<TraceSnapshot[]>([]);
+  const stoppingRef = useRef(false);
+
+  const appendLog = useCallback((msg: string) => {
+    setLogEntries((prev) => [msg, ...prev].slice(0, 100));
+  }, []);
+
+  const stopAlgorithm = useCallback(() => {
+    if (abortController && runStatus === "running") {
+      stoppingRef.current = true;
+      setRunStatus("stopping");
+      setRunMessage("Stopping solver and cleaning up…");
+      abortController.abort();
+    }
+  }, [abortController, runStatus]);
+
+  const appendTrace = useCallback((t: TraceSnapshot) => {
+    setTraceSnapshots((prev) => {
+      const last = prev[prev.length - 1];
+      if (last && last.algorithm === t.algorithm && last.step === t.step && last.kind === t.kind) {
+        return [...prev.slice(0, -1), { ...last, ...t }];
+      }
+
+      const next = [...prev, t];
+      return next.length > 80 ? next.slice(-80) : next;
+    });
+  }, []);
+
+  const clearTraces = useCallback(() => setTraceSnapshots([]), []);
 
   const addResult = useCallback((result: ScheduleResult) => {
     setResults((prev) => [...prev, result]);
@@ -88,28 +165,29 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   const clearResults = useCallback(() => {
     setResults([]);
     setSelectedResult(null);
-  }, []);
+    setCurrentIteration(null);
+    setCurrentScore(null);
+    clearTraces();
+    setRunStatus("idle");
+    setRunMessage(null);
+  }, [clearTraces]);
 
-  const updateShift = useCallback((nurseIndex: number, dayIndex: number, shift: ShiftType) => {
-    if (!selectedResult) return;
-    
-    const newSchedule = selectedResult.schedule.map((row, i) =>
-      i === nurseIndex
-        ? row.map((s, j) => (j === dayIndex ? shift : s))
-        : [...row]
-    );
-
-    const updatedResult: ScheduleResult = {
-      ...selectedResult,
-      schedule: newSchedule,
-      algorithm: selectedResult.algorithm + " (Modified)",
-    };
-
-    setSelectedResult(updatedResult);
-    setResults((prev) =>
-      prev.map((r) => (r === selectedResult ? updatedResult : r))
-    );
-  }, [selectedResult]);
+  const updateShift = useCallback(
+    (nurseIndex: number, dayIndex: number, shift: ShiftType) => {
+      if (!selectedResult) return;
+      const newSchedule = selectedResult.schedule.map((row, i) =>
+        i === nurseIndex ? row.map((s, j) => (j === dayIndex ? shift : s)) : [...row]
+      );
+      const updatedResult: ScheduleResult = {
+        ...selectedResult,
+        schedule: newSchedule,
+        algorithm: selectedResult.algorithm + " (Modified)",
+      };
+      setSelectedResult(updatedResult);
+      setResults((prev) => prev.map((r) => (r === selectedResult ? updatedResult : r)));
+    },
+    [selectedResult]
+  );
 
   return (
     <ScheduleContext.Provider
@@ -123,8 +201,27 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
         selectedResult,
         setSelectedResult,
         updateShift,
-        isLoading,
-        setIsLoading,
+        runStatus,
+        setRunStatus,
+        runMessage,
+        setRunMessage,
+        abortController,
+        setAbortController,
+        stopAlgorithm,
+        currentIteration,
+        setCurrentIteration,
+        currentScore,
+        setCurrentScore,
+        currentPhase,
+        setCurrentPhase,
+        currentMessage,
+        setCurrentMessage,
+        logEntries,
+        appendLog,
+        traceSnapshots,
+        setTraceSnapshots,
+        appendTrace,
+        clearTraces,
       }}
     >
       {children}
@@ -134,8 +231,6 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
 
 export function useSchedule() {
   const context = useContext(ScheduleContext);
-  if (context === undefined) {
-    throw new Error("useSchedule must be used within a ScheduleProvider");
-  }
+  if (!context) throw new Error("useSchedule must be used within ScheduleProvider");
   return context;
 }

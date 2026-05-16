@@ -1,257 +1,313 @@
-import { NextResponse } from 'next/server';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import path from 'path';
-import fs from 'fs';
-import os from 'os';
-import { randomUUID } from 'crypto';
+import { NextResponse } from "next/server";
+import { spawn } from "child_process";
+import path from "path";
+import fs from "fs";
+import os from "os";
+import { randomUUID } from "crypto";
+import { killProcessTree } from "@/lib/process-kill";
 
-const execFileAsync = promisify(execFile);
+const PYTHON = process.platform === "win32" ? "python" : "python3";
+const RUNNER_PATH = path.join(process.cwd(), "runner.py");
 
-const PYTHON_ARGS = {
-  maxBuffer: 1024 * 1024 * 10,
-  /** Prevent hung workers from blocking the tab indefinitely (per process). */
-  timeout: 15 * 60 * 1000,
-} as const;
-
-function nursesToCsv(nurses: any[]): string {
-  let csvContent =
-    'ID,LastName,FirstName,DateOfBirth,Age,Gender,seniority,day_off1,day_off2\n';
-  nurses.forEach((nurse: any, index: number) => {
+function nursesToCsv(nurses: Record<string, unknown>[]): string {
+  let csv =
+    "ID,LastName,FirstName,DateOfBirth,Age,Gender,seniority,day_off1,day_off2\n";
+  nurses.forEach((nurse, index) => {
     const id = index + 1;
-    const nameParts = nurse.name.split(' ');
+    const name = String(nurse.name ?? "");
+    const nameParts = name.split(" ");
     const firstName = nameParts[0];
-    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'Unknown';
-    const dob = '01/01/1990';
-    const age = 30;
-    const gender = 'F';
-    const seniority = nurse.isSenior ? 'senior' : 'junior';
-    const dayOff1 =
-      nurse.dayOffRequests && nurse.dayOffRequests[0] ? nurse.dayOffRequests[0] : 0;
-    const dayOff2 =
-      nurse.dayOffRequests && nurse.dayOffRequests[1] ? nurse.dayOffRequests[1] : 0;
-    csvContent += `${id},${lastName},${firstName},${dob},${age},${gender},${seniority},${dayOff1},${dayOff2}\n`;
+    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "Unknown";
+    const seniority = nurse.isSenior ? "senior" : "junior";
+    const reqs = (nurse.dayOffRequests as number[]) || [];
+    csv += `${id},${lastName},${firstName},01/01/1990,30,F,${seniority},${reqs[0] ?? 0},${reqs[1] ?? 0}\n`;
   });
-  return csvContent;
+  return csv;
 }
 
-function parseJsonFromStdout(stdout: string): unknown {
-  const lines = stdout.trim().split('\n');
-  const jsonLine = lines[lines.length - 1];
-  return JSON.parse(jsonLine);
+type SpawnOpts = {
+  args: string[];
+  signal?: AbortSignal;
+  onLine?: (line: string) => void;
+};
+
+async function spawnPython({ args, signal, onLine }: SpawnOpts): Promise<{
+  code: number | null;
+  cancelled: boolean;
+  stdout: string;
+  lastJson: Record<string, unknown> | null;
+}> {
+  const cancelFile = path.join(os.tmpdir(), `cancel_${randomUUID()}.flag`);
+  const fullArgs = [...args, "--cancel-file", cancelFile];
+  let stdout = "";
+  let lastJson: Record<string, unknown> | null = null;
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(PYTHON, fullArgs, { stdio: ["ignore", "pipe", "pipe"] });
+    let buf = "";
+
+    const cleanup = () => {
+      try {
+        if (fs.existsSync(cancelFile)) fs.unlinkSync(cancelFile);
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const requestCancel = () => {
+      try {
+        fs.writeFileSync(cancelFile, "1");
+      } catch {
+        /* ignore */
+      }
+      void killProcessTree(child);
+    };
+
+    if (signal?.aborted) requestCancel();
+    else signal?.addEventListener("abort", requestCancel, { once: true });
+
+    child.stdout?.on("data", (chunk: Buffer) => {
+      const text = chunk.toString();
+      stdout += text;
+      buf += text;
+      const parts = buf.split("\n");
+      buf = parts.pop() || "";
+      for (const line of parts) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        onLine?.(trimmed);
+        if (trimmed.startsWith("{")) {
+          try {
+            lastJson = JSON.parse(trimmed) as Record<string, unknown>;
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    });
+
+    child.stderr?.on("data", (c: Buffer) => console.error(`Python: ${c.toString()}`));
+
+    child.on("error", (err) => {
+      cleanup();
+      reject(err);
+    });
+
+    child.on("close", (code) => {
+      if (buf.trim()) {
+        onLine?.(buf.trim());
+        if (buf.trim().startsWith("{")) {
+          try {
+            lastJson = JSON.parse(buf.trim()) as Record<string, unknown>;
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+      const cancelled = signal?.aborted === true;
+      cleanup();
+      resolve({ code, cancelled, stdout, lastJson });
+    });
+  });
 }
 
-async function runPythonAlgorithm(
-  pythonExecutable: string,
-  runnerPath: string,
-  tempFilePath: string,
-  algorithm: string,
-  batchRuns: number
-): Promise<{ stdout: string; stderr: string }> {
-  const args = [runnerPath, '--algorithm', algorithm, '--data', tempFilePath];
-  if (batchRuns > 0) {
-    args.push('--batch-runs', batchRuns.toString());
-  }
-  return execFileAsync(pythonExecutable, args, PYTHON_ARGS);
+function sseStream(
+  run: (enqueue: (obj: unknown) => void, signal?: AbortSignal) => Promise<void>,
+  request: Request
+): Response {
+  const encoder = new TextEncoder();
+  return new Response(
+    new ReadableStream({
+      async start(controller) {
+        const enqueue = (obj: unknown) =>
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+        try {
+          await run(enqueue, request.signal);
+        } catch (err) {
+          if (request.signal.aborted) {
+            enqueue({ type: "cancelled", message: "Run cancelled" });
+          } else {
+            enqueue({
+              error: err instanceof Error ? err.message : "Execution failed",
+            });
+          }
+        } finally {
+          controller.close();
+        }
+      },
+    }),
+    {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    }
+  );
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { nurses } = body;
-
-    if (!nurses || !Array.isArray(nurses)) {
-      return NextResponse.json({ error: 'Missing nurses data' }, { status: 400 });
+    const nurses = body.nurses;
+    if (!nurses?.length) {
+      return NextResponse.json({ error: "Missing nurses data" }, { status: 400 });
     }
 
-    const tempDir = os.tmpdir();
-    const runnerPath = path.join(process.cwd(), 'runner.py');
-    const pythonExecutable = process.platform === 'win32' ? 'python' : 'python3';
+    const tempCsv = path.join(os.tmpdir(), `nurses_${randomUUID()}.csv`);
+    fs.writeFileSync(tempCsv, nursesToCsv(nurses));
+    const cleanupCsv = () => {
+      if (fs.existsSync(tempCsv)) fs.unlinkSync(tempCsv);
+    };
+    request.signal.addEventListener("abort", cleanupCsv, { once: true });
 
-    /**
-     * Full batch statistical analysis: one request, one CSV.
-     * Runs each algorithm sequentially (one Python process at a time). Parallel batch
-     * workers often crash or drop the connection on Windows when CPU/RAM is saturated.
-     */
     if (body.batchAnalysis === true) {
       const batchRuns = Number(body.batchRuns) || 0;
       if (batchRuns < 2 || batchRuns > 50) {
+        cleanupCsv();
         return NextResponse.json(
-          { error: 'batchRuns must be between 2 and 50 for batch analysis' },
+          { error: "batchRuns must be between 2 and 50" },
           { status: 400 }
         );
       }
-      const tempFilePath = path.join(tempDir, `nurses_${randomUUID()}.csv`);
-      fs.writeFileSync(tempFilePath, nursesToCsv(nurses));
-      const order = ['greedy', 'csp', 'tabu', 'sa'] as const;
-      const results: unknown[] = [];
-      const errors: { algorithm: string; message: string }[] = [];
-      try {
+
+      return sseStream(async (enqueue, signal) => {
+        const order = ["greedy", "csp", "tabu", "sa"] as const;
+        const results: unknown[] = [];
+        const errors: { algorithm: string; message: string }[] = [];
+
         for (const alg of order) {
-          try {
-            const { stdout } = await runPythonAlgorithm(
-              pythonExecutable,
-              runnerPath,
-              tempFilePath,
+          if (signal?.aborted) break;
+          enqueue({ type: "phase", phase: "algorithm_start", algorithm: alg });
+
+          const { cancelled, lastJson, code } = await spawnPython({
+            args: [
+              RUNNER_PATH,
+              "--algorithm",
               alg,
-              batchRuns
-            );
-            const parsed = parseJsonFromStdout(stdout) as Record<string, unknown>;
-            if (
-              parsed &&
-              typeof parsed.algorithm === 'string' &&
-              Array.isArray(parsed.runs)
-            ) {
-              results.push(parsed);
-            } else {
-              errors.push({
-                algorithm: alg,
-                message: 'Invalid batch output from runner',
-              });
-            }
-          } catch (runErr: unknown) {
-            const reason = runErr as Error & { code?: string };
-            const msg =
-              reason?.code === 'ETIMEDOUT'
-                ? 'Algorithm run timed out'
-                : reason?.message || 'Execution failed';
-            errors.push({ algorithm: alg, message: msg });
+              "--data",
+              tempCsv,
+              "--batch-runs",
+              String(batchRuns),
+              "--stream",
+            ],
+            signal,
+            onLine: (line) => {
+              try {
+                enqueue(JSON.parse(line));
+              } catch {
+                /* ignore */
+              }
+            },
+          });
+
+          if (cancelled) {
+            enqueue({ type: "cancelled", partialResults: results });
+            break;
+          }
+
+          if (lastJson?.runs) {
+            results.push(lastJson);
+          } else {
+            errors.push({
+              algorithm: alg,
+              message: code === 130 ? "Cancelled" : "Invalid batch output",
+            });
           }
         }
-        if (errors.length === order.length) {
-          return NextResponse.json(
-            { error: 'All batch runs failed', details: errors },
-            { status: 500 }
-          );
+
+        cleanupCsv();
+        if (!signal?.aborted) {
+          enqueue({ type: "done", results, errors: errors.length ? errors : undefined });
         }
-        return NextResponse.json({ results, errors: errors.length ? errors : undefined });
-      } finally {
-        if (fs.existsSync(tempFilePath)) {
-          fs.unlinkSync(tempFilePath);
-        }
-      }
+      }, request);
     }
 
-    /** Compare mode: one request, one CSV, parallel single runs. */
     const multiAlgorithms = body.algorithms as string[] | undefined;
-    if (Array.isArray(multiAlgorithms) && multiAlgorithms.length > 0) {
-      const allowed = new Set(['csp', 'greedy', 'tabu', 'sa']);
+    if (multiAlgorithms?.length) {
+      const allowed = new Set(["csp", "greedy", "tabu", "sa"]);
       for (const a of multiAlgorithms) {
         if (!allowed.has(a)) {
+          cleanupCsv();
           return NextResponse.json({ error: `Invalid algorithm: ${a}` }, { status: 400 });
         }
       }
-      const tempFilePath = path.join(tempDir, `nurses_${randomUUID()}.csv`);
-      fs.writeFileSync(tempFilePath, nursesToCsv(nurses));
-      try {
-        const settled = await Promise.allSettled(
-          multiAlgorithms.map((alg) =>
-            runPythonAlgorithm(pythonExecutable, runnerPath, tempFilePath, alg, 0)
-          )
-        );
+
+      return sseStream(async (enqueue, signal) => {
         const results: unknown[] = [];
         const errors: { algorithm: string; message: string }[] = [];
-        settled.forEach((out, i) => {
-          const alg = multiAlgorithms[i];
-          if (out.status === 'fulfilled') {
-            try {
-              const parsed = parseJsonFromStdout(out.value.stdout) as Record<string, unknown>;
-              if (parsed.error) {
-                errors.push({
-                  algorithm: alg,
-                  message: String(parsed.error),
-                });
-              } else if (
-                parsed.schedule &&
-                Array.isArray(parsed.schedule) &&
-                typeof parsed.algorithm === 'string'
-              ) {
-                results.push(parsed);
-              } else {
-                errors.push({ algorithm: alg, message: 'Invalid schedule output from runner' });
+
+        for (const alg of multiAlgorithms) {
+          if (signal?.aborted) break;
+          enqueue({ type: "phase", phase: "algorithm_start", algorithm: alg });
+
+          const { cancelled, lastJson, code } = await spawnPython({
+            args: [RUNNER_PATH, "--algorithm", alg, "--data", tempCsv, "--stream"],
+            signal,
+            onLine: (line) => {
+              try {
+                enqueue(JSON.parse(line));
+              } catch {
+                /* ignore */
               }
-            } catch {
-              errors.push({ algorithm: alg, message: 'Failed to parse algorithm output' });
-            }
-          } else {
-            const reason = out.reason as Error & { code?: string };
-            const msg =
-              reason?.code === 'ETIMEDOUT'
-                ? 'Algorithm run timed out'
-                : reason?.message || 'Execution failed';
-            errors.push({ algorithm: alg, message: msg });
+            },
+          });
+
+          if (cancelled) {
+            if (lastJson?.schedule) results.push(lastJson);
+            enqueue({ type: "cancelled", partialResults: results });
+            break;
           }
-        });
-        if (errors.length === multiAlgorithms.length) {
-          return NextResponse.json(
-            { error: 'All algorithm runs failed', details: errors },
-            { status: 500 }
-          );
+
+          if (lastJson?.schedule) {
+            results.push(lastJson);
+          } else if (lastJson?.error) {
+            errors.push({ algorithm: alg, message: String(lastJson.error) });
+          } else {
+            errors.push({ algorithm: alg, message: `Exit code ${code}` });
+          }
         }
-        return NextResponse.json({ results, errors: errors.length ? errors : undefined });
-      } finally {
-        if (fs.existsSync(tempFilePath)) {
-          fs.unlinkSync(tempFilePath);
+
+        cleanupCsv();
+        if (!signal?.aborted) {
+          enqueue({ type: "done", results, errors: errors.length ? errors : undefined });
         }
-      }
+      }, request);
     }
 
     const { algorithm } = body;
     if (!algorithm) {
-      return NextResponse.json(
-        { error: 'Missing algorithm or use algorithms[] / batchAnalysis' },
-        { status: 400 }
-      );
+      cleanupCsv();
+      return NextResponse.json({ error: "Missing algorithm" }, { status: 400 });
     }
 
-    const csvContent = nursesToCsv(nurses);
-    const tempFilePath = path.join(tempDir, `nurses_${randomUUID()}.csv`);
-    fs.writeFileSync(tempFilePath, csvContent);
-    const batchRuns = Number(body.batchRuns) || 0;
+    return sseStream(async (enqueue, signal) => {
+      const { cancelled, lastJson } = await spawnPython({
+        args: [RUNNER_PATH, "--algorithm", algorithm, "--data", tempCsv, "--stream"],
+        signal,
+        onLine: (line) => {
+          try {
+            enqueue(JSON.parse(line));
+          } catch {
+            /* ignore */
+          }
+        },
+      });
 
-    try {
-      const { stdout, stderr } = await runPythonAlgorithm(
-        pythonExecutable,
-        runnerPath,
-        tempFilePath,
-        algorithm,
-        batchRuns
-      );
+      cleanupCsv();
 
-      fs.unlinkSync(tempFilePath);
-
-      let result: Record<string, unknown>;
-      try {
-        result = parseJsonFromStdout(stdout) as Record<string, unknown>;
-      } catch {
-        console.error('Failed to parse JSON from python stdout:', stdout);
-        console.error('Stderr:', stderr);
-        return NextResponse.json(
-          { error: 'Failed to parse algorithm output', details: stdout },
-          { status: 500 }
-        );
+      if (cancelled && !lastJson?.schedule) {
+        enqueue({ type: "cancelled", message: "Run cancelled before a schedule was produced" });
+      } else if (cancelled && lastJson) {
+        enqueue({ ...lastJson, cancelled: true });
+      } else if (!lastJson?.schedule) {
+        enqueue({ error: "Algorithm finished without returning a schedule" });
       }
-
-      if (result.error) {
-        return NextResponse.json({ error: result.error }, { status: 500 });
-      }
-
-      return NextResponse.json(result);
-    } catch (execError: unknown) {
-      if (fs.existsSync(tempFilePath)) {
-        fs.unlinkSync(tempFilePath);
-      }
-      const err = execError as Error & { code?: string };
-      console.error('Python execution error:', execError);
-      const message =
-        err?.code === 'ETIMEDOUT' ? 'Algorithm run timed out' : err?.message || 'Unknown error';
-      return NextResponse.json({ error: 'Algorithm execution failed', details: message }, { status: 500 });
-    }
+    }, request);
   } catch (error: unknown) {
     const err = error as Error;
-    console.error('API route error:', error);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: "Internal server error", details: err.message },
       { status: 500 }
     );
   }

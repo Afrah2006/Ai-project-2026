@@ -28,17 +28,17 @@ export function MainDashboard() {
     <div className="w-full">
       <div className="container mx-auto px-4 mb-8">
         <div className="flex justify-center">
-          <div className="bg-secondary/50 p-1.5 rounded-xl inline-flex gap-2 relative">
+          <div className="bg-background/60 backdrop-blur-xl border border-border/50 shadow-lg p-1.5 rounded-2xl inline-flex gap-2 relative">
             <button
               onClick={() => setActiveTab("planner")}
-              className={`relative px-6 py-2.5 text-sm font-semibold rounded-lg transition-all z-10 ${
+              className={`relative px-6 py-2.5 text-sm font-semibold rounded-xl transition-all z-10 ${
                 activeTab === "planner" ? "text-primary" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {activeTab === "planner" && (
                 <motion.div
                   layoutId="active-tab"
-                  className="absolute inset-0 bg-background rounded-lg shadow-sm"
+                  className="absolute inset-0 bg-background/90 dark:bg-card/90 shadow-md rounded-xl"
                   initial={false}
                   transition={{ type: "spring", stiffness: 500, damping: 30 }}
                 />
@@ -47,14 +47,14 @@ export function MainDashboard() {
             </button>
             <button
               onClick={() => setActiveTab("analysis")}
-              className={`relative px-6 py-2.5 text-sm font-semibold rounded-lg transition-all z-10 ${
+              className={`relative px-6 py-2.5 text-sm font-semibold rounded-xl transition-all z-10 ${
                 activeTab === "analysis" ? "text-primary" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {activeTab === "analysis" && (
                 <motion.div
                   layoutId="active-tab"
-                  className="absolute inset-0 bg-background rounded-lg shadow-sm"
+                  className="absolute inset-0 bg-background/90 dark:bg-card/90 shadow-md rounded-xl"
                   initial={false}
                   transition={{ type: "spring", stiffness: 500, damping: 30 }}
                 />

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSchedule } from "@/lib/schedule-context";
 import { runFullBatchAnalysis, BatchRunResult } from "@/lib/algorithms";
-import { Play, BarChart2, Activity, Clock, Target, AlertCircle } from "lucide-react";
+import { Play, BarChart2, Activity, Clock, Target, AlertCircle, Square } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -22,8 +22,21 @@ export function StatisticalAnalysisSection() {
   const { nurses } = useSchedule();
   const [runs, setRuns] = useState<number>(10);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
+  const [batchMessage, setBatchMessage] = useState<string | null>(null);
+  const [batchProgress, setBatchProgress] = useState<number | null>(null);
   const [results, setResults] = useState<BatchRunResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const handleStop = () => {
+    if (abortRef.current) {
+      setIsStopping(true);
+      setBatchMessage("Stopping batch analysis…");
+      setBatchProgress(null);
+      abortRef.current.abort();
+    }
+  };
 
   const handleRunAnalysis = async () => {
     if (runs < 2 || runs > 50) {
@@ -32,25 +45,65 @@ export function StatisticalAnalysisSection() {
     }
 
     setIsAnalyzing(true);
+    setIsStopping(false);
     setError(null);
     setResults(null);
+    setBatchMessage("Starting batch analysis…");
+    setBatchProgress(0);
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
-      const { results: batch, errors } = await runFullBatchAnalysis(nurses, runs);
+      const { results: batch, errors, cancelled } = await runFullBatchAnalysis(nurses, runs, {
+        signal: controller.signal,
+        onProgress: (data) => {
+          const percent = Number(data.progressPercent);
+          if (Number.isFinite(percent)) {
+            setBatchProgress(Math.max(0, Math.min(100, percent)));
+          } else if (data.type === "batch_progress") {
+            const current = Number(data.completed ?? data.runIndex);
+            const total = Number(data.totalRuns);
+            if (Number.isFinite(current) && Number.isFinite(total) && total > 0) {
+              setBatchProgress(Math.max(0, Math.min(100, (current / total) * 100)));
+            }
+          }
+          if (data.type === "batch_progress") {
+            setBatchMessage(
+              `${data.algorithm}: run ${data.runIndex}/${data.totalRuns}`
+            );
+          }
+          if (data.phase === "algorithm_start") {
+            setBatchMessage(`Running ${data.algorithm}…`);
+          }
+        },
+      });
+      if (cancelled) {
+        setError("Batch analysis was cancelled.");
+        if (batch.length) setResults(batch);
+        return;
+      }
       if (batch.length === 0) {
         throw new Error("No algorithm produced batch results.");
       }
       setResults(batch);
+      setBatchMessage(null);
+      setBatchProgress(null);
       if (errors?.length) {
         setError(
           `Partial results: ${errors.map((e) => `${e.algorithm} (${e.message})`).join("; ")}`
         );
       }
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || "An error occurred during batch analysis.");
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") {
+        setError("Batch analysis cancelled.");
+      } else {
+        console.error(err);
+        setError(err instanceof Error ? err.message : "An error occurred during batch analysis.");
+      }
     } finally {
       setIsAnalyzing(false);
+      setIsStopping(false);
+      abortRef.current = null;
     }
   };
 
@@ -131,24 +184,39 @@ export function StatisticalAnalysisSection() {
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
-              <Button
-                size="lg"
-                onClick={handleRunAnalysis}
-                disabled={isAnalyzing}
-                className="w-full sm:w-auto"
-              >
-                {isAnalyzing ? (
-                  <>
-                    <div className="size-4 mr-2 border-2 border-white rounded-full border-t-transparent animate-spin" />
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <Play className="size-4 mr-2" />
-                    Start Batch Analysis
-                  </>
-                )}
-              </Button>
+              {isAnalyzing ? (
+                <Button
+                  size="lg"
+                  variant="destructive"
+                  onClick={handleStop}
+                  disabled={isStopping}
+                  className="w-full sm:w-auto gap-2"
+                >
+                  <Square className="size-4 fill-current" />
+                  {isStopping ? "Stopping…" : "Stop"}
+                </Button>
+              ) : (
+                <Button size="lg" onClick={handleRunAnalysis} className="w-full sm:w-auto gap-2">
+                  <Play className="size-4" />
+                  Start Batch Analysis
+                </Button>
+              )}
+              {isAnalyzing && batchMessage && (
+                <p className="text-sm text-primary sm:col-span-2 w-full">{batchMessage}</p>
+              )}
+              {isAnalyzing && batchProgress !== null && (
+                <div className="w-full sm:col-span-2 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <span>Batch Progress</span>
+                    <span>{Math.round(batchProgress)}%</span>
+                  </div>
+                  <progress
+                    value={batchProgress}
+                    max={100}
+                    className="h-2 w-full overflow-hidden rounded-full accent-primary"
+                  />
+                </div>
+              )}
             </div>
             
             {error && (
@@ -194,7 +262,7 @@ export function StatisticalAnalysisSection() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[300px]">
+                  <div className="h-[300px] w-full min-w-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={averagesData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -224,7 +292,7 @@ export function StatisticalAnalysisSection() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[300px]">
+                  <div className="h-[300px] w-full min-w-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={averagesData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
