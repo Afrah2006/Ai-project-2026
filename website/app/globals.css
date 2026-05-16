@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: Arial, Helvetica, sans-serif;
+  --font-sans: var(--font-manrope), Arial, Helvetica, sans-serif;
   --font-mono: "Courier New", Consolas, monospace;
-  --font-heading: Arial, Helvetica, sans-serif;
+  --font-heading: var(--font-space-grotesk), Arial, Helvetica, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -50,72 +50,76 @@
 
 /* Dark healthcare/tech theme - teal accent on dark background */
 :root {
-  --background: #F4FBFC;
-  --foreground: #172A3A;
-  --card: #FFFFFF;
-  --card-foreground: #172A3A;
-  --popover: #FFFFFF;
-  --popover-foreground: #172A3A;
-  --primary: #004346;
-  --primary-foreground: #FFFFFF;
-  --secondary: #D6F3F4;
-  --secondary-foreground: #004346;
-  --muted: #E2F5F6;
-  --muted-foreground: #508991;
-  --accent: #74B3CE;
-  --accent-foreground: #172A3A;
+  --background: #f3fbfb;
+  --foreground: #10212f;
+  --card: #ffffff;
+  --card-foreground: #10212f;
+  --popover: #ffffff;
+  --popover-foreground: #10212f;
+  --primary: #0f766e;
+  --primary-foreground: #ffffff;
+  --secondary: #e0f4f1;
+  --secondary-foreground: #0f766e;
+  --muted: #eaf7f5;
+  --muted-foreground: #4f7480;
+  --accent: #f59e0b;
+  --accent-foreground: #10212f;
   --destructive: oklch(0.60 0.20 25);
-  --border: #74B3CE;
-  --input: #74B3CE;
-  --ring: #004346;
-  --chart-1: #004346;
-  --chart-2: #508991;
-  --chart-3: #74B3CE;
-  --chart-4: #D6F3F4;
-  --chart-5: #172A3A;
+  --border: #b9ddd9;
+  --input: #b9ddd9;
+  --ring: #0f766e;
+  --chart-1: #0f766e;
+  --chart-2: #14b8a6;
+  --chart-3: #38bdf8;
+  --chart-4: #f59e0b;
+  --chart-5: #10212f;
   --radius: 0.625rem;
-  --sidebar: #F4FBFC;
-  --sidebar-foreground: #172A3A;
-  --sidebar-primary: #004346;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #D6F3F4;
-  --sidebar-accent-foreground: #172A3A;
-  --sidebar-border: #74B3CE;
-  --sidebar-ring: #004346;
+  --sidebar: #f3fbfb;
+  --sidebar-foreground: #10212f;
+  --sidebar-primary: #0f766e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e0f4f1;
+  --sidebar-accent-foreground: #10212f;
+  --sidebar-border: #b9ddd9;
+  --sidebar-ring: #0f766e;
+  --page-glow-1: rgba(15, 118, 110, 0.16);
+  --page-glow-2: rgba(245, 158, 11, 0.12);
 }
 
 .dark {
-  --background: #172A3A;
-  --foreground: #D6F3F4;
-  --card: #111F2B;
-  --card-foreground: #D6F3F4;
-  --popover: #111F2B;
-  --popover-foreground: #D6F3F4;
-  --primary: #74B3CE;
-  --primary-foreground: #172A3A;
-  --secondary: #004346;
-  --secondary-foreground: #D6F3F4;
-  --muted: #1A3245;
-  --muted-foreground: #74B3CE;
-  --accent: #508991;
-  --accent-foreground: #D6F3F4;
+  --background: #0f1f2d;
+  --foreground: #e3f7f3;
+  --card: #132433;
+  --card-foreground: #e3f7f3;
+  --popover: #132433;
+  --popover-foreground: #e3f7f3;
+  --primary: #2dd4bf;
+  --primary-foreground: #0f1f2d;
+  --secondary: #143141;
+  --secondary-foreground: #e3f7f3;
+  --muted: #173545;
+  --muted-foreground: #8fbfc0;
+  --accent: #fbbf24;
+  --accent-foreground: #0f1f2d;
   --destructive: oklch(0.60 0.20 25);
-  --border: #508991;
-  --input: #508991;
-  --ring: #74B3CE;
-  --chart-1: #74B3CE;
-  --chart-2: #508991;
-  --chart-3: #D6F3F4;
-  --chart-4: #004346;
-  --chart-5: #FFFFFF;
-  --sidebar: #172A3A;
-  --sidebar-foreground: #D6F3F4;
-  --sidebar-primary: #74B3CE;
-  --sidebar-primary-foreground: #172A3A;
-  --sidebar-accent: #004346;
-  --sidebar-accent-foreground: #D6F3F4;
-  --sidebar-border: #508991;
-  --sidebar-ring: #74B3CE;
+  --border: #20485b;
+  --input: #20485b;
+  --ring: #2dd4bf;
+  --chart-1: #2dd4bf;
+  --chart-2: #38bdf8;
+  --chart-3: #fbbf24;
+  --chart-4: #0f766e;
+  --chart-5: #e3f7f3;
+  --sidebar: #0f1f2d;
+  --sidebar-foreground: #e3f7f3;
+  --sidebar-primary: #2dd4bf;
+  --sidebar-primary-foreground: #0f1f2d;
+  --sidebar-accent: #143141;
+  --sidebar-accent-foreground: #e3f7f3;
+  --sidebar-border: #20485b;
+  --sidebar-ring: #2dd4bf;
+  --page-glow-1: rgba(45, 212, 191, 0.18);
+  --page-glow-2: rgba(251, 191, 36, 0.1);
 }
 
 @layer base {
@@ -124,6 +128,10 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(circle at top, var(--page-glow-1), transparent 34%),
+      radial-gradient(circle at bottom right, var(--page-glow-2), transparent 30%);
+    background-attachment: fixed;
   }
   html {
     @apply font-sans scroll-smooth;

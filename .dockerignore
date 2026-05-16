@@ -1,0 +1,15 @@
+**/node_modules
+**/.next
+**/.git
+**/run-logs
+**/__pycache__
+**/.pytest_cache
+**/.venv
+**/venv
+**/*.log
+**/.cursor
+**/agent-transcripts
+tmp_*.txt
+**/.env
+**/.env.local
+**/Nurse_Schedule.ipynb

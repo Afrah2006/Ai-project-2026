@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sun, Moon, Sunset, Minus, Upload, Play, RotateCcw, Download, Edit3, Check } from "lucide-react";
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useSchedule, type ShiftType, type Nurse } from "@/lib/schedule-context";
+import type { ScheduleHistoryEntry } from "@/lib/schedule-types";
 import { runSimulatedAnnealing, runTabuSearch, runGreedy, runCSP, runAllSchedulers } from "@/lib/algorithms";
 import {
   Select,
@@ -37,18 +38,36 @@ export function ScheduleSection() {
   const [editingCell, setEditingCell] = useState<{ nurse: number; day: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [datasets, setDatasets] = useState<{name: string, data: Nurse[]}[]>([]);
+  const [datasets, setDatasets] = useState<{ name: string; data: Nurse[] }[]>([]);
   const [selectedDatasetIndex, setSelectedDatasetIndex] = useState<string>("0");
+  const [abortCtrl, setAbortCtrl] = useState<AbortController | null>(null);
+  const [runStatus, setRunStatus] = useState<string>("Idle");
+  const [runElapsedMs, setRunElapsedMs] = useState(0);
+
+  const datasetOptions = useMemo(
+    () =>
+      datasets.length > 0
+        ? datasets
+        : [{ name: "Project Default Dataset", data: nurses }],
+    [datasets, nurses]
+  );
 
   useEffect(() => {
-    if (datasets.length === 0 && nurses.length > 0) {
-      setDatasets([{ name: "Project Default Dataset", data: nurses }]);
+    if (!isLoading) {
+      return;
     }
-  }, [nurses, datasets.length]);
+
+    const startedAt = performance.now();
+    const interval = window.setInterval(() => {
+      setRunElapsedMs(Math.round(performance.now() - startedAt));
+    }, 250);
+
+    return () => window.clearInterval(interval);
+  }, [isLoading]);
 
   const handleDatasetChange = (val: string) => {
     setSelectedDatasetIndex(val);
-    const dataset = datasets[parseInt(val)];
+    const dataset = datasetOptions[parseInt(val)];
     if (dataset) {
       setNurses(dataset.data);
       clearResults();
@@ -106,26 +125,49 @@ export function ScheduleSection() {
 
   const runAlgorithm = useCallback(async () => {
     setIsLoading(true);
+    const controller = new AbortController();
+    setAbortCtrl(controller);
+    const algorithmLabel = algorithms.find((a) => a.id === selectedAlgorithm)?.name || selectedAlgorithm;
+    setRunStatus(`Running ${algorithmLabel}...`);
+    setRunElapsedMs(0);
+    const startedAt = performance.now();
     try {
       const algorithm = algorithms.find((a) => a.id === selectedAlgorithm);
       if (algorithm) {
-        const result = await algorithm.run(nurses);
+        const result = await algorithm.run(nurses, controller.signal);
         addResult(result);
+        setRunStatus(`Completed ${algorithmLabel}`);
       }
     } catch (error) {
-      console.error(error);
-      alert("Failed to run algorithm. Please check the console.");
+      if (
+        (error instanceof DOMException && error.name === "AbortError") ||
+        (error instanceof Error && error.message === "Request aborted")
+      ) {
+        setRunStatus(`Cancelled ${algorithmLabel}`);
+        return;
+      } else {
+        console.error(error);
+        setRunStatus(`Failed ${algorithmLabel}`);
+        alert("Failed to run algorithm. Please check the console.");
+      }
     } finally {
       setIsLoading(false);
+      setAbortCtrl(null);
+      setRunElapsedMs(Math.round(performance.now() - startedAt));
     }
   }, [selectedAlgorithm, nurses, addResult, setIsLoading]);
 
   const runAllAlgorithms = useCallback(async () => {
     setIsLoading(true);
+    const controller = new AbortController();
+    setAbortCtrl(controller);
     clearResults();
+    setRunStatus("Running compare mode...");
+    setRunElapsedMs(0);
+    const startedAt = performance.now();
     try {
       const order = algorithms.map((a) => a.id);
-      const { results: batch, errors } = await runAllSchedulers(nurses, order);
+      const { results: batch, errors } = await runAllSchedulers(nurses, order, controller.signal);
       if (batch.length > 0) {
         addResults(batch);
       }
@@ -135,11 +177,20 @@ export function ScheduleSection() {
       if (batch.length === 0) {
         alert("All algorithms failed to run. Check the server console and Python setup.");
       }
+      setRunStatus("Compare run completed");
     } catch (error) {
-      console.error(error);
-      alert("Failed to run algorithms. Please check the console.");
+      if (error instanceof DOMException && error.name === "AbortError") {
+        setRunStatus("Compare run cancelled");
+        return;
+      } else {
+        console.error(error);
+        setRunStatus("Compare run failed");
+        alert("Failed to run algorithms. Please check the console.");
+      }
     } finally {
       setIsLoading(false);
+      setAbortCtrl(null);
+      setRunElapsedMs(Math.round(performance.now() - startedAt));
     }
   }, [nurses, addResults, clearResults, setIsLoading]);
 
@@ -183,6 +234,39 @@ export function ScheduleSection() {
   };
 
   const displayDays = 28;
+  const [historyIndex, setHistoryIndex] = useState<number | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const progressLog = selectedResult?.progressLog ?? [];
+
+  const resultHistory = useMemo<ScheduleHistoryEntry[]>(
+    () => selectedResult?.history ?? [],
+    [selectedResult?.history]
+  );
+
+  const displayedSchedule = (() => {
+    if (!selectedResult) return [] as string[][];
+    if (
+      historyIndex !== null &&
+      resultHistory[historyIndex]?.schedule
+    ) {
+      return resultHistory[historyIndex].schedule;
+    }
+    return selectedResult.schedule;
+  })();
+
+  // playback loop
+  useEffect(() => {
+    if (!playing) return;
+    if (!selectedResult || resultHistory.length === 0) return;
+    const hist = resultHistory;
+    let idx = historyIndex ?? 0;
+    const interval = setInterval(() => {
+      idx = Math.min(idx + 1, hist.length - 1);
+      setHistoryIndex(idx);
+      if (idx === hist.length - 1) setPlaying(false);
+    }, 400);
+    return () => clearInterval(interval);
+  }, [playing, selectedResult, historyIndex, resultHistory]);
 
   return (
     <section id="schedule" className="py-24 bg-card/30">
@@ -218,7 +302,11 @@ export function ScheduleSection() {
             <CardContent>
               <div className="flex flex-wrap items-center gap-4">
                 {/* File Upload */}
+                <label htmlFor="nurse-csv-upload" className="sr-only">
+                  Upload nurse schedule CSV
+                </label>
                 <input
+                  id="nurse-csv-upload"
                   type="file"
                   accept=".csv"
                   ref={fileInputRef}
@@ -229,19 +317,20 @@ export function ScheduleSection() {
                   variant="outline"
                   onClick={() => fileInputRef.current?.click()}
                   className="gap-2"
+                  aria-label="Upload nurse schedule CSV"
                 >
                   <Upload className="size-4" />
                   Upload CSV
                 </Button>
 
                 {/* Dataset Selection */}
-                {datasets.length > 0 && (
+                {datasetOptions.length > 0 && (
                   <Select value={selectedDatasetIndex} onValueChange={handleDatasetChange}>
                     <SelectTrigger className="w-[200px]">
                       <SelectValue placeholder="Select dataset" />
                     </SelectTrigger>
                     <SelectContent>
-                      {datasets.map((ds, idx) => (
+                      {datasetOptions.map((ds, idx) => (
                         <SelectItem key={idx} value={String(idx)}>
                           {ds.name}
                         </SelectItem>
@@ -270,6 +359,13 @@ export function ScheduleSection() {
                   Run Algorithm
                 </Button>
 
+                {isLoading && (
+                  <Button variant="destructive" onClick={() => abortCtrl?.abort()} className="gap-2">
+                    <RotateCcw className="size-4" />
+                    Stop
+                  </Button>
+                )}
+
                 {/* Run All Button */}
                 <Button onClick={runAllAlgorithms} disabled={isLoading} variant="secondary" className="gap-2">
                   <Play className="size-4" />
@@ -290,6 +386,16 @@ export function ScheduleSection() {
                 <p className="text-xs text-muted-foreground mt-1">
                   Example: John Doe, true, 1;3;5
                 </p>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
+                <div className="flex items-center gap-3">
+                  {isLoading && <span className="inline-flex size-2.5 animate-pulse rounded-full bg-primary" />}
+                  <span className="font-medium text-foreground">{runStatus}</span>
+                </div>
+                <div className="text-xs text-muted-foreground tabular-nums">
+                  Elapsed {runElapsedMs} ms
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -332,6 +438,12 @@ export function ScheduleSection() {
             <p className="text-muted-foreground mt-2 text-center max-w-sm">
               Please wait while the scheduling engine searches the solution space for the optimal nurse schedule.
             </p>
+            <div className="mt-4 inline-flex items-center gap-3 rounded-full border border-border bg-muted/40 px-4 py-2 text-sm text-foreground">
+              <span className="inline-flex size-2.5 animate-pulse rounded-full bg-primary" />
+              <span>{runStatus}</span>
+              <span className="text-muted-foreground">•</span>
+              <span className="tabular-nums text-muted-foreground">{runElapsedMs} ms elapsed</span>
+            </div>
           </motion.div>
         )}
 
@@ -385,6 +497,38 @@ export function ScheduleSection() {
           </motion.div>
         )}
 
+        {!isLoading && selectedResult && progressLog.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8"
+          >
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground">Run Progress Log</CardTitle>
+                <CardDescription>
+                  Iteration updates captured from the optimizer while it ran.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="max-h-56 overflow-auto rounded-lg border border-border bg-muted/30 p-4 font-mono text-xs text-muted-foreground">
+                  {progressLog.map((line, index) => (
+                    <div key={`${index}-${line}`} className="whitespace-pre-wrap leading-5">
+                      {line}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {!isLoading && selectedResult?.logFile && (
+          <div className="mb-8 text-xs text-muted-foreground">
+            Iteration log file: {selectedResult.logFile}
+          </div>
+        )}
+
         {/* Schedule Grid */}
         {!isLoading && selectedResult && (
           <motion.div
@@ -418,6 +562,26 @@ export function ScheduleSection() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
+                {resultHistory.length > 0 && (
+                  <div className="p-3 border-b border-border flex items-center gap-4">
+                    <button
+                      onClick={() => setPlaying((p) => !p)}
+                      className="px-3 py-1 rounded bg-primary text-primary-foreground"
+                    >
+                      {playing ? 'Pause' : 'Play'}
+                    </button>
+                    <input
+                      type="range"
+                      min={0}
+                      max={resultHistory.length - 1}
+                      value={historyIndex ?? 0}
+                      onChange={(e) => { setHistoryIndex(Number(e.target.value)); setPlaying(false); }}
+                      className="flex-1"
+                      aria-label="Schedule optimization iteration"
+                    />
+                    <div className="text-sm text-muted-foreground">Iteration: {historyIndex ?? 0}</div>
+                  </div>
+                )}
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[1400px]">
                     <thead>
@@ -457,8 +621,9 @@ export function ScheduleSection() {
                               )}
                             </div>
                           </td>
-                          {selectedResult.schedule[nurseIndex]?.map((shift, dayIndex) => {
-                            const config = shiftConfig[shift];
+                          {(displayedSchedule[nurseIndex] || []).map((shift, dayIndex) => {
+                            const shiftKey = (shift in shiftConfig ? shift : "O") as ShiftType;
+                            const config = shiftConfig[shiftKey];
                             const Icon = config.icon;
                             const isEditing = editingCell?.nurse === nurseIndex && editingCell?.day === dayIndex;
                             
@@ -476,6 +641,8 @@ export function ScheduleSection() {
                                       return (
                                         <button
                                           key={s}
+                                          type="button"
+                                          aria-label={`Set shift to ${c.label}`}
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             handleShiftChange(s);
@@ -498,10 +665,22 @@ export function ScheduleSection() {
                             );
                           })}
                           <td className="p-2 text-center text-xs font-medium text-foreground">
-                            {selectedResult.hoursPerNurse[nurseIndex]}h
+                            {(() => {
+                              const row = displayedSchedule[nurseIndex] || [];
+                              let hours = 0;
+                              row.forEach((s) => {
+                                if (["D", "L", "N"].includes(s)) hours += 8;
+                              });
+                              return `${hours}h`;
+                            })()}
                           </td>
                           <td className="p-2 text-center text-xs font-medium text-foreground">
-                            {selectedResult.nightShiftsPerNurse[nurseIndex]}
+                            {(() => {
+                              const row = displayedSchedule[nurseIndex] || [];
+                              let nights = 0;
+                              row.forEach((s) => { if (s === 'N') nights += 1; });
+                              return nights;
+                            })()}
                           </td>
                         </tr>
                       ))}

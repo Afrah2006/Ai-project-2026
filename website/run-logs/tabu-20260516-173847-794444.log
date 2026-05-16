@@ -1,0 +1,5 @@
+[runner] generating base schedule attempt=1
+[runner] base schedule generation failed; retrying
+[runner] generating base schedule attempt=2
+[runner] base schedule generated
+[tabu] starting iterations=60

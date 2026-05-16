@@ -1,0 +1,53 @@
+[runner] generating base schedule attempt=1
+[runner] base schedule generation failed; retrying
+[runner] generating base schedule attempt=2
+[runner] base schedule generation failed; retrying
+[runner] generating base schedule attempt=3
+[runner] base schedule generated
+[tabu] starting iterations=2000
+[tabu] iter=1 current=1084.62 best=1084.62 tabu=1
+[tabu] iter=2 current=1082.95 best=1082.95 tabu=2
+[tabu] iter=3 current=1082.95 best=1082.95 tabu=3
+[tabu] iter=4 current=1081.29 best=1081.29 tabu=4
+[tabu] iter=5 current=1070.95 best=1070.95 tabu=5
+[tabu] iter=6 current=1060.29 best=1060.29 tabu=6
+[tabu] iter=7 current=1059.04 best=1059.04 tabu=7
+[tabu] iter=8 current=1021.54 best=1021.54 tabu=8
+[tabu] iter=9 current=1021.54 best=1021.54 tabu=9
+[tabu] iter=10 current=1021.54 best=1021.54 tabu=10
+[tabu] iter=11 current=1033.87 best=1021.54 tabu=11
+[tabu] iter=12 current=1033.87 best=1021.54 tabu=12
+[tabu] iter=13 current=1033.87 best=1021.54 tabu=12
+[tabu] iter=14 current=1033.87 best=1021.54 tabu=12
+[tabu] iter=15 current=1033.87 best=1021.54 tabu=12
+[tabu] iter=16 current=1033.87 best=1021.54 tabu=12
+[tabu] iter=17 current=1033.87 best=1021.54 tabu=12
+[tabu] iter=18 current=1033.87 best=1021.54 tabu=12
+[tabu] iter=19 current=1033.87 best=1021.54 tabu=12
+[tabu] iter=20 current=1012.54 best=1012.54 tabu=12
+[tabu] iter=21 current=1012.20 best=1012.20 tabu=12
+[tabu] iter=22 current=1012.20 best=1012.20 tabu=12
+[tabu] iter=23 current=1012.20 best=1012.20 tabu=12
+[tabu] iter=24 current=1001.20 best=1001.20 tabu=12
+[tabu] iter=25 current=1001.20 best=1001.20 tabu=12
+[tabu] iter=26 current=1001.62 best=1001.20 tabu=12
+[tabu] iter=27 current=1001.20 best=1001.20 tabu=12
+[tabu] iter=28 current=1001.20 best=1001.20 tabu=12
+[tabu] iter=29 current=976.54 best=976.54 tabu=12
+[tabu] iter=30 current=976.12 best=976.12 tabu=12
+[tabu] iter=31 current=965.45 best=965.45 tabu=12
+[tabu] iter=32 current=965.04 best=965.04 tabu=12
+[tabu] iter=33 current=965.04 best=965.04 tabu=12
+[tabu] iter=34 current=964.62 best=964.62 tabu=12
+[tabu] iter=35 current=964.20 best=964.20 tabu=12
+[tabu] iter=36 current=953.54 best=953.54 tabu=12
+[tabu] iter=37 current=953.12 best=953.12 tabu=12
+[tabu] iter=38 current=928.12 best=928.12 tabu=12
+[tabu] iter=39 current=890.62 best=890.62 tabu=12
+[tabu] iter=40 current=890.62 best=890.62 tabu=12
+[tabu] iter=41 current=876.29 best=876.29 tabu=12
+[tabu] iter=42 current=876.29 best=876.29 tabu=12
+[tabu] iter=43 current=876.29 best=876.29 tabu=12
+[tabu] iter=44 current=876.29 best=876.29 tabu=12
+[tabu] iter=45 current=876.29 best=876.29 tabu=12
+[tabu] iter=46 current=865.29 best=865.29 tabu=12

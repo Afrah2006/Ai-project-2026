@@ -26,19 +26,19 @@ export function MainDashboard() {
 
   return (
     <div className="w-full">
-      <div className="container mx-auto px-4 mb-8">
+      <div className="container mx-auto mb-8 px-4">
         <div className="flex justify-center">
-          <div className="bg-secondary/50 p-1.5 rounded-xl inline-flex gap-2 relative">
+          <div className="inline-flex gap-2 rounded-2xl border border-border/70 bg-card/80 p-1.5 shadow-sm backdrop-blur">
             <button
               onClick={() => setActiveTab("planner")}
-              className={`relative px-6 py-2.5 text-sm font-semibold rounded-lg transition-all z-10 ${
+              className={`relative z-10 rounded-xl px-6 py-2.5 text-sm font-semibold transition-all ${
                 activeTab === "planner" ? "text-primary" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {activeTab === "planner" && (
                 <motion.div
                   layoutId="active-tab"
-                  className="absolute inset-0 bg-background rounded-lg shadow-sm"
+                  className="absolute inset-0 rounded-xl bg-primary/10 shadow-sm"
                   initial={false}
                   transition={{ type: "spring", stiffness: 500, damping: 30 }}
                 />
@@ -47,14 +47,14 @@ export function MainDashboard() {
             </button>
             <button
               onClick={() => setActiveTab("analysis")}
-              className={`relative px-6 py-2.5 text-sm font-semibold rounded-lg transition-all z-10 ${
+              className={`relative z-10 rounded-xl px-6 py-2.5 text-sm font-semibold transition-all ${
                 activeTab === "analysis" ? "text-primary" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {activeTab === "analysis" && (
                 <motion.div
                   layoutId="active-tab"
-                  className="absolute inset-0 bg-background rounded-lg shadow-sm"
+                  className="absolute inset-0 rounded-xl bg-primary/10 shadow-sm"
                   initial={false}
                   transition={{ type: "spring", stiffness: 500, damping: 30 }}
                 />

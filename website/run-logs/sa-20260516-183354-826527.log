@@ -1,0 +1,19 @@
+[runner] generating base schedule attempt=1
+[runner] base schedule generation failed; retrying
+[runner] generating base schedule attempt=2
+[runner] base schedule generation failed; retrying
+[runner] generating base schedule attempt=3
+[runner] base schedule generated
+[sa] starting iterations=1200
+  [SA] iter=   100  T= 90.8656  cur=   1597.74  best=   1427.24
+  [SA] iter=   200  T= 55.0437  cur=   1426.04  best=   1415.37
+  [SA] iter=   300  T= 33.3438  cur=   1390.12  best=   1369.07
+  [SA] iter=   400  T= 20.1987  cur=   1184.74  best=   1184.74
+  [SA] iter=   500  T= 12.2358  cur=   1157.15  best=   1157.15
+  [SA] iter=   600  T=  7.4121  cur=   1072.90  best=   1059.49
+  [SA] iter=   700  T=  4.4900  cur=    940.49  best=    939.65
+  [SA] iter=   800  T=  2.7199  cur=    851.20  best=    850.37
+  [SA] iter=   900  T=  1.6476  cur=    779.80  best=    778.45
+  [SA] iter=  1000  T=  0.9981  cur=    724.40  best=    724.40
+  [SA] iter=  1100  T=  0.6046  cur=    617.55  best=    617.55
+  [SA] iter=  1200  T=  0.3663  cur=    572.29  best=    572.29

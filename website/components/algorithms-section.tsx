@@ -63,9 +63,10 @@ const localSearchAlgorithms = [
       "Same-day swaps between two nurses (preserves per-day shift counts). Explores up to 60 random neighbours per iteration; tabu tenure avoids cycling. Requires a hard-feasible start (from the generator).",
     params: [
       { name: "Tabu tenure", value: "12 moves" },
-      { name: "Iterations (site runner)", value: "2000" },
-      { name: "Neighbours sampled / iter", value: "60" },
-      { name: "Stop if no best for", value: "300 iterations" },
+      { name: "Iterations (site runner)", value: "10 000" },
+      { name: "Neighbours / iteration", value: "60" },
+      { name: "Neighbours sampled / iter", value: "6" },
+      { name: "Stop if no best for", value: "200 iterations" },
     ],
   },
   {
@@ -208,7 +209,7 @@ export function AlgorithmsSection() {
                     <Card className="h-full bg-card border-border hover:border-primary/50 transition-colors">
                       <CardHeader>
                         <div
-                          className={`inline-flex p-3 rounded-xl bg-gradient-to-br ${algo.color} mb-3 w-fit`}
+                          className={`inline-flex w-fit rounded-xl bg-linear-to-br p-3 ${algo.color} mb-3`}
                         >
                           <algo.icon className="size-6 text-white" />
                         </div>
