@@ -1,0 +1,12 @@
+[runner] generating base schedule attempt=1
+[runner] base schedule generation failed; retrying
+[runner] generating base schedule attempt=2
+[runner] base schedule generated
+[tabu] starting iterations=30
+[tabu] iter=1 current=1509.90 best=1509.90 tabu=1
+[tabu] iter=2 current=1509.49 best=1509.49 tabu=2
+[tabu] iter=3 current=1512.29 best=1509.49 tabu=3
+[tabu] iter=4 current=1479.95 best=1479.95 tabu=4
+[tabu] iter=5 current=1465.62 best=1465.62 tabu=5
+[tabu] iter=6 current=1465.62 best=1465.62 tabu=6
+[tabu] iter=7 current=1465.62 best=1465.62 tabu=7

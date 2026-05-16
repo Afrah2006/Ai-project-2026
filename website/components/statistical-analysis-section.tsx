@@ -14,13 +14,12 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from "recharts";
 
 export function StatisticalAnalysisSection() {
   const { nurses } = useSchedule();
-  const [runs, setRuns] = useState<number>(10);
+  const [runs, setRuns] = useState<number>(5);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [results, setResults] = useState<BatchRunResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,9 +45,9 @@ export function StatisticalAnalysisSection() {
           `Partial results: ${errors.map((e) => `${e.algorithm} (${e.message})`).join("; ")}`
         );
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || "An error occurred during batch analysis.");
+      setError(err instanceof Error ? err.message : "An error occurred during batch analysis.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -195,7 +194,7 @@ export function StatisticalAnalysisSection() {
                 </CardHeader>
                 <CardContent>
                   <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
                       <BarChart data={averagesData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                         <XAxis dataKey="name" stroke="var(--foreground)" fontSize={12} tickLine={false} axisLine={false} />
@@ -225,7 +224,7 @@ export function StatisticalAnalysisSection() {
                 </CardHeader>
                 <CardContent>
                   <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
                       <BarChart data={averagesData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                         <XAxis dataKey="name" stroke="var(--foreground)" fontSize={12} tickLine={false} axisLine={false} />
@@ -267,7 +266,7 @@ export function StatisticalAnalysisSection() {
                       </tr>
                     </thead>
                     <tbody>
-                      {averagesData.map((data, idx) => (
+                      {averagesData.map((data) => (
                         <tr key={data.name} className="border-b border-border last:border-0 hover:bg-secondary/20 transition-colors">
                           <td className="px-6 py-4 font-semibold text-foreground">{data.name}</td>
                           <td className="px-6 py-4">

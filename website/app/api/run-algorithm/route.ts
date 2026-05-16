@@ -1,72 +1,233 @@
 import { NextResponse } from 'next/server';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
+import { execFile, spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import { randomUUID } from 'crypto';
+import type { AlgorithmRunBody } from '@/lib/schedule-types';
+import {
+  forwardToVercelPython,
+  nursesToCsv,
+  parseJsonFromStdout,
+} from '@/lib/run-algorithm-backend';
 
-const execFileAsync = promisify(execFile);
+export const maxDuration = 300;
+export const dynamic = 'force-dynamic';
 
 const PYTHON_ARGS = {
   maxBuffer: 1024 * 1024 * 10,
-  /** Prevent hung workers from blocking the tab indefinitely (per process). */
   timeout: 15 * 60 * 1000,
 } as const;
-
-function nursesToCsv(nurses: any[]): string {
-  let csvContent =
-    'ID,LastName,FirstName,DateOfBirth,Age,Gender,seniority,day_off1,day_off2\n';
-  nurses.forEach((nurse: any, index: number) => {
-    const id = index + 1;
-    const nameParts = nurse.name.split(' ');
-    const firstName = nameParts[0];
-    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'Unknown';
-    const dob = '01/01/1990';
-    const age = 30;
-    const gender = 'F';
-    const seniority = nurse.isSenior ? 'senior' : 'junior';
-    const dayOff1 =
-      nurse.dayOffRequests && nurse.dayOffRequests[0] ? nurse.dayOffRequests[0] : 0;
-    const dayOff2 =
-      nurse.dayOffRequests && nurse.dayOffRequests[1] ? nurse.dayOffRequests[1] : 0;
-    csvContent += `${id},${lastName},${firstName},${dob},${age},${gender},${seniority},${dayOff1},${dayOff2}\n`;
-  });
-  return csvContent;
-}
-
-function parseJsonFromStdout(stdout: string): unknown {
-  const lines = stdout.trim().split('\n');
-  const jsonLine = lines[lines.length - 1];
-  return JSON.parse(jsonLine);
-}
 
 async function runPythonAlgorithm(
   pythonExecutable: string,
   runnerPath: string,
   tempFilePath: string,
   algorithm: string,
-  batchRuns: number
+  batchRuns: number,
+  seed: number | undefined,
+  iterations: number | undefined,
+  maxNoImprove: number | undefined,
+  checkpointPath?: string,
+  signal?: AbortSignal
 ): Promise<{ stdout: string; stderr: string }> {
   const args = [runnerPath, '--algorithm', algorithm, '--data', tempFilePath];
+  if (typeof seed === 'number') {
+    args.push('--seed', seed.toString());
+  }
+  if (typeof iterations === 'number') {
+    args.push('--iterations', iterations.toString());
+  }
   if (batchRuns > 0) {
     args.push('--batch-runs', batchRuns.toString());
   }
-  return execFileAsync(pythonExecutable, args, PYTHON_ARGS);
+  if (typeof maxNoImprove === 'number') {
+    args.push('--max-no-improve', maxNoImprove.toString());
+  }
+  if (checkpointPath) {
+    args.push('--checkpoint', checkpointPath);
+  }
+
+  return new Promise((resolve, reject) => {
+    const child = execFile(pythonExecutable, args, PYTHON_ARGS, (err, stdout, stderr) => {
+      if (err) return reject(err);
+      resolve({ stdout, stderr });
+    });
+
+    const onAbort = () => {
+      try {
+        child.kill();
+      } catch {
+        // ignore
+      }
+      reject(new Error('Request aborted'));
+    };
+
+    if (signal) {
+      if (signal.aborted) {
+        onAbort();
+      } else {
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+    }
+  });
+}
+
+function streamPythonAlgorithm(
+  pythonExecutable: string,
+  runnerPath: string,
+  tempFilePath: string,
+  algorithm: string,
+  batchRuns: number,
+  seed: number | undefined,
+  iterations: number | undefined,
+  maxNoImprove: number | undefined,
+  checkpointPath: string | undefined,
+  signal?: AbortSignal
+): Response {
+  const encoder = new TextEncoder();
+  let cleanedUp = false;
+
+  const cleanup = () => {
+    if (cleanedUp) {
+      return;
+    }
+    cleanedUp = true;
+    if (fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+    }
+  };
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const args = [runnerPath, '--algorithm', algorithm, '--data', tempFilePath];
+      if (typeof seed === 'number') {
+        args.push('--seed', seed.toString());
+      }
+      if (typeof iterations === 'number') {
+        args.push('--iterations', iterations.toString());
+      }
+      if (batchRuns > 0) {
+        args.push('--batch-runs', batchRuns.toString());
+      }
+      if (typeof maxNoImprove === 'number') {
+        args.push('--max-no-improve', maxNoImprove.toString());
+      }
+      if (checkpointPath) {
+        args.push('--checkpoint', checkpointPath);
+      }
+
+      const child = spawn(pythonExecutable, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+      let stdoutBuffer = '';
+      let stderrBuffer = '';
+
+      const writeLine = (line: string) => {
+        controller.enqueue(encoder.encode(`${line}\n`));
+      };
+
+      const flushStdout = () => {
+        let newlineIndex = stdoutBuffer.indexOf('\n');
+        while (newlineIndex !== -1) {
+          const line = stdoutBuffer.slice(0, newlineIndex).replace(/\r$/, '');
+          stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1);
+          if (line.trim()) {
+            writeLine(line);
+          }
+          newlineIndex = stdoutBuffer.indexOf('\n');
+        }
+      };
+
+      const fail = (details: string) => {
+        controller.enqueue(
+          encoder.encode(JSON.stringify({ error: 'Algorithm execution failed', details }) + '\n')
+        );
+        cleanup();
+        controller.close();
+      };
+
+      child.stdout.on('data', (chunk) => {
+        stdoutBuffer += chunk.toString();
+        flushStdout();
+      });
+
+      child.stdout.on('end', () => {
+        if (stdoutBuffer.trim()) {
+          writeLine(stdoutBuffer.trimEnd());
+        }
+        stdoutBuffer = '';
+      });
+
+      child.stderr.on('data', (chunk) => {
+        stderrBuffer += chunk.toString();
+      });
+
+      child.on('error', (error) => {
+        fail(error.message);
+      });
+
+      child.on('close', (code) => {
+        if (code === 0) {
+          cleanup();
+          controller.close();
+          return;
+        }
+
+        fail(stderrBuffer.trim().slice(0, 500) || `Process exited with code ${code}`);
+      });
+
+      const onAbort = () => {
+        try {
+          child.kill();
+        } catch {
+          // ignore kill errors during cancellation
+        }
+        cleanup();
+        controller.error(new Error('Request aborted'));
+      };
+
+      if (signal) {
+        if (signal.aborted) {
+          onAbort();
+        } else {
+          signal.addEventListener('abort', onAbort, { once: true });
+        }
+      }
+    },
+    cancel() {
+      cleanup();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+    },
+  });
 }
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as AlgorithmRunBody;
     const { nurses } = body;
 
     if (!nurses || !Array.isArray(nurses)) {
       return NextResponse.json({ error: 'Missing nurses data' }, { status: 400 });
     }
 
+    if (process.env.VERCEL) {
+      return forwardToVercelPython(body, request.signal);
+    }
+
     const tempDir = os.tmpdir();
-    const runnerPath = path.join(process.cwd(), 'runner.py');
-    const pythonExecutable = process.platform === 'win32' ? 'python' : 'python3';
+    const runnerPath =
+      process.env.RUNNER_PATH || path.join(process.cwd(), 'runner.py');
+    const pythonExecutable =
+      process.env.PYTHON_EXECUTABLE ||
+      (process.platform === 'win32' ? 'python' : 'python3');
+    const seed = typeof body.seed === 'number' ? body.seed : undefined;
+    const iterations = typeof body.iterations === 'number' ? body.iterations : undefined;
+    const maxNoImprove = typeof body.maxNoImprove === 'number' ? body.maxNoImprove : undefined;
 
     /**
      * Full batch statistical analysis: one request, one CSV.
@@ -89,12 +250,18 @@ export async function POST(request: Request) {
       try {
         for (const alg of order) {
           try {
+            const checkpointPath = path.join(tempDir, `nurses_${alg}_${randomUUID()}.chk.json`);
             const { stdout } = await runPythonAlgorithm(
               pythonExecutable,
               runnerPath,
               tempFilePath,
               alg,
-              batchRuns
+              batchRuns,
+              alg === 'tabu' ? (seed ?? 1) : seed,
+              alg === 'tabu' ? (iterations ?? 10000) : iterations,
+              alg === 'tabu' ? (maxNoImprove ?? 200) : maxNoImprove,
+              checkpointPath,
+              request.signal
             );
             const parsed = parseJsonFromStdout(stdout) as Record<string, unknown>;
             if (
@@ -145,9 +312,21 @@ export async function POST(request: Request) {
       fs.writeFileSync(tempFilePath, nursesToCsv(nurses));
       try {
         const settled = await Promise.allSettled(
-          multiAlgorithms.map((alg) =>
-            runPythonAlgorithm(pythonExecutable, runnerPath, tempFilePath, alg, 0)
-          )
+          multiAlgorithms.map((alg) => {
+            const checkpointPath = path.join(tempDir, `nurses_${alg}_${randomUUID()}.chk.json`);
+            return runPythonAlgorithm(
+              pythonExecutable,
+              runnerPath,
+              tempFilePath,
+              alg,
+              0,
+              alg === 'tabu' ? (seed ?? 1) : seed,
+              alg === 'tabu' ? (iterations ?? 10000) : iterations,
+              alg === 'tabu' ? (maxNoImprove ?? 200) : maxNoImprove,
+              checkpointPath,
+              request.signal
+            );
+          })
         );
         const results: unknown[] = [];
         const errors: { algorithm: string; message: string }[] = [];
@@ -210,12 +389,35 @@ export async function POST(request: Request) {
     const batchRuns = Number(body.batchRuns) || 0;
 
     try {
+      const checkpointPath = path.join(tempDir, `nurses_${algorithm}_${randomUUID()}.chk.json`);
+      const wantsProgressStream = algorithm === 'tabu' && batchRuns === 0 && body.progressStream === true;
+
+      if (wantsProgressStream) {
+        return streamPythonAlgorithm(
+          pythonExecutable,
+          runnerPath,
+          tempFilePath,
+          algorithm,
+          batchRuns,
+          algorithm === 'tabu' ? (seed ?? 1) : seed,
+          algorithm === 'tabu' ? (iterations ?? 10000) : iterations,
+          algorithm === 'tabu' ? (maxNoImprove ?? 200) : maxNoImprove,
+          checkpointPath,
+          request.signal
+        );
+      }
+
       const { stdout, stderr } = await runPythonAlgorithm(
         pythonExecutable,
         runnerPath,
         tempFilePath,
         algorithm,
-        batchRuns
+        batchRuns,
+        algorithm === 'tabu' ? (seed ?? 1) : seed,
+        algorithm === 'tabu' ? (iterations ?? 10000) : iterations,
+        algorithm === 'tabu' ? (maxNoImprove ?? 200) : maxNoImprove,
+        checkpointPath,
+        request.signal
       );
 
       fs.unlinkSync(tempFilePath);
@@ -242,6 +444,9 @@ export async function POST(request: Request) {
         fs.unlinkSync(tempFilePath);
       }
       const err = execError as Error & { code?: string };
+      if (err?.message === 'Request aborted' || request.signal.aborted) {
+        return NextResponse.json({ error: 'Request aborted' }, { status: 499 });
+      }
       console.error('Python execution error:', execError);
       const message =
         err?.code === 'ETIMEDOUT' ? 'Algorithm run timed out' : err?.message || 'Unknown error';

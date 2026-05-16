@@ -93,7 +93,7 @@ export function TeamSection() {
               <Card className="bg-card border-border hover:border-primary/50 transition-colors h-full">
                 <CardContent className="p-6">
                   <div className="flex items-start gap-4">
-                    <div className={`p-3 rounded-xl bg-gradient-to-br ${member.gradient} shadow-lg flex-shrink-0`}>
+                    <div className={`shrink-0 rounded-xl bg-linear-to-br p-3 shadow-lg ${member.gradient}`}>
                       <member.icon className="h-6 w-6 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -128,7 +128,7 @@ export function TeamSection() {
           transition={{ duration: 0.6, delay: 0.4 }}
           className="mt-16 text-center"
         >
-          <Card className="bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 border-primary/20 max-w-2xl mx-auto">
+              <Card className="mx-auto max-w-2xl border-primary/20 bg-linear-to-r from-primary/10 via-primary/5 to-primary/10">
             <CardContent className="p-8">
               <h3 className="text-xl font-semibold text-foreground mb-2">
                 Academic Project

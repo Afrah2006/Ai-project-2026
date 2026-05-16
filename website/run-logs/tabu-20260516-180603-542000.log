@@ -1,0 +1,42 @@
+[runner] generating base schedule attempt=1
+[runner] base schedule generated
+[tabu] starting iterations=1700
+[tabu] iter=25 current=1250.87 best=1250.87 tabu=12 stagnation=1
+[tabu] iter=50 current=1047.62 best=1047.62 tabu=12 stagnation=0
+[tabu] iter=75 current=976.32 best=976.32 tabu=12 stagnation=2
+[tabu] iter=100 current=862.65 best=862.65 tabu=12 stagnation=0
+[tabu] iter=125 current=860.65 best=845.65 tabu=12 stagnation=8
+[tabu] iter=150 current=732.82 best=730.82 tabu=12 stagnation=2
+[tabu] iter=175 current=646.20 best=646.20 tabu=12 stagnation=1
+[tabu] iter=200 current=551.74 best=551.74 tabu=12 stagnation=2
+[tabu] iter=225 current=543.24 best=526.65 tabu=12 stagnation=21
+[tabu] iter=250 current=466.57 best=466.57 tabu=12 stagnation=0
+[tabu] iter=275 current=465.15 best=425.82 tabu=12 stagnation=12
+[tabu] iter=300 current=433.74 best=425.82 tabu=12 stagnation=37
+[tabu] iter=325 current=482.82 best=425.82 tabu=12 stagnation=62
+[tabu] iter=350 current=415.99 best=393.49 tabu=12 stagnation=9
+[tabu] iter=375 current=335.65 best=335.65 tabu=12 stagnation=0
+[tabu] iter=400 current=215.37 best=215.37 tabu=12 stagnation=2
+[tabu] iter=425 current=204.49 best=173.65 tabu=12 stagnation=9
+[tabu] iter=450 current=137.07 best=137.07 tabu=12 stagnation=3
+[tabu] iter=475 current=91.45 best=80.40 tabu=12 stagnation=8
+[tabu] iter=500 current=160.79 best=80.40 tabu=12 stagnation=33
+[tabu] iter=525 current=133.74 best=80.40 tabu=12 stagnation=58
+[tabu] iter=550 current=108.65 best=80.40 tabu=12 stagnation=83
+[tabu] iter=575 current=62.90 best=62.90 tabu=12 stagnation=0
+[tabu] iter=600 current=52.20 best=39.65 tabu=12 stagnation=16
+[tabu] iter=625 current=38.97 best=38.70 tabu=12 stagnation=3
+[tabu] iter=650 current=-28.11 best=-28.11 tabu=12 stagnation=0
+[tabu] iter=675 current=-60.45 best=-65.86 tabu=12 stagnation=12
+[tabu] iter=700 current=-85.63 best=-85.63 tabu=12 stagnation=6
+[tabu] iter=725 current=-56.38 best=-90.63 tabu=12 stagnation=22
+[tabu] iter=750 current=-65.55 best=-90.63 tabu=12 stagnation=47
+[tabu] iter=775 current=-112.71 best=-124.63 tabu=12 stagnation=17
+[tabu] iter=800 current=-147.20 best=-163.70 tabu=12 stagnation=5
+[tabu] iter=825 current=-148.63 best=-163.70 tabu=12 stagnation=30
+[tabu] iter=850 current=-134.18 best=-163.70 tabu=12 stagnation=55
+[tabu] iter=875 current=-118.10 best=-163.70 tabu=12 stagnation=80
+[tabu] iter=900 current=-77.05 best=-163.70 tabu=12 stagnation=105
+[tabu] iter=925 current=-93.28 best=-163.70 tabu=12 stagnation=130
+[tabu] iter=950 current=-93.46 best=-163.70 tabu=12 stagnation=155
+[tabu] iter=975 current=-108.80 best=-163.70 tabu=12 stagnation=180

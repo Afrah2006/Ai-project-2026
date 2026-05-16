@@ -208,7 +208,7 @@ export function ResultsSection() {
                 </CardHeader>
                 <CardContent>
                   <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
                       <BarChart data={comparisonData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                         <XAxis
@@ -255,7 +255,7 @@ export function ResultsSection() {
                 </CardHeader>
                 <CardContent>
                   <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
                       <RadarChart data={radarData}>
                         <PolarGrid stroke="var(--border)" />
                         <PolarAngleAxis
@@ -332,7 +332,7 @@ export function ResultsSection() {
                   </CardHeader>
                   <CardContent>
                     <div className="h-[350px]">
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={350}>
                         <BarChart data={hoursData} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                           <XAxis
@@ -394,7 +394,7 @@ export function ResultsSection() {
                   </CardHeader>
                   <CardContent>
                     <div className="h-[350px]">
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
                         <BarChart data={nightsData}>
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                           <XAxis
@@ -454,7 +454,7 @@ export function ResultsSection() {
                   </CardHeader>
                   <CardContent>
                     <div className="h-[200px]">
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
                         <BarChart data={comparisonData} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                           <XAxis

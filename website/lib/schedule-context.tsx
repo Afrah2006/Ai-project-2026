@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useCallback } from "react";
+import type { ScheduleHistoryEntry } from "./schedule-types";
 
 export type ShiftType = "D" | "L" | "N" | "O"; // Day, Late, Night, Off
 
@@ -20,6 +21,10 @@ export interface ScheduleResult {
   executionTime: number;
   hoursPerNurse: number[];
   nightShiftsPerNurse: number[];
+  progressLog?: string[];
+  history?: ScheduleHistoryEntry[];
+  logFile?: string;
+  iterations?: number;
 }
 
 interface ScheduleContextType {

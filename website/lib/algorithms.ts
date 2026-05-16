@@ -1,5 +1,13 @@
 import type { Nurse, ScheduleResult } from "./schedule-context";
 
+export interface TabuProgressUpdate {
+  iteration?: number;
+  currentScore?: number;
+  bestScore?: number;
+  tabuSize?: number;
+  stagnation?: number;
+}
+
 function apiUrl(path: string): string {
   if (typeof window !== "undefined" && window.location?.origin) {
     return `${window.location.origin}${path}`;
@@ -20,11 +28,12 @@ async function readJsonOrThrow(response: Response): Promise<Record<string, unkno
   }
 }
 
-export async function runSimulatedAnnealing(nurses: Nurse[]): Promise<ScheduleResult> {
+export async function runSimulatedAnnealing(nurses: Nurse[], signal?: AbortSignal): Promise<ScheduleResult> {
   const response = await fetch(apiUrl("/api/run-algorithm"), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ algorithm: 'sa', nurses }),
+    signal,
   });
   if (!response.ok) {
     const error = await response.json();
@@ -33,11 +42,21 @@ export async function runSimulatedAnnealing(nurses: Nurse[]): Promise<ScheduleRe
   return response.json();
 }
 
-export async function runTabuSearch(nurses: Nurse[]): Promise<ScheduleResult> {
+export async function runTabuSearch(
+  nurses: Nurse[],
+  signal?: AbortSignal
+): Promise<ScheduleResult> {
   const response = await fetch(apiUrl("/api/run-algorithm"), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ algorithm: 'tabu', nurses }),
+    body: JSON.stringify({
+      algorithm: 'tabu',
+      nurses,
+      seed: 1,
+      iterations: 10000,
+      maxNoImprove: 200,
+    }),
+    signal,
   });
   if (!response.ok) {
     const error = await response.json();
@@ -46,11 +65,12 @@ export async function runTabuSearch(nurses: Nurse[]): Promise<ScheduleResult> {
   return response.json();
 }
 
-export async function runGreedy(nurses: Nurse[]): Promise<ScheduleResult> {
+export async function runGreedy(nurses: Nurse[], signal?: AbortSignal): Promise<ScheduleResult> {
   const response = await fetch(apiUrl("/api/run-algorithm"), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ algorithm: 'greedy', nurses }),
+    signal,
   });
   if (!response.ok) {
     const error = await response.json();
@@ -59,11 +79,12 @@ export async function runGreedy(nurses: Nurse[]): Promise<ScheduleResult> {
   return response.json();
 }
 
-export async function runCSP(nurses: Nurse[]): Promise<ScheduleResult> {
+export async function runCSP(nurses: Nurse[], signal?: AbortSignal): Promise<ScheduleResult> {
   const response = await fetch(apiUrl("/api/run-algorithm"), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ algorithm: 'csp', nurses }),
+    signal,
   });
   if (!response.ok) {
     const error = await response.json();
@@ -81,11 +102,12 @@ export interface BatchRunResult {
   }[];
 }
 
-export async function runBatchAlgorithm(algorithm: string, nurses: Nurse[], batchRuns: number): Promise<BatchRunResult> {
+export async function runBatchAlgorithm(algorithm: string, nurses: Nurse[], batchRuns: number, signal?: AbortSignal): Promise<BatchRunResult> {
   const response = await fetch(apiUrl("/api/run-algorithm"), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ algorithm, nurses, batchRuns }),
+    signal,
   });
   if (!response.ok) {
     const error = await response.json();
@@ -99,7 +121,8 @@ const DEFAULT_COMPARE_ORDER = ['sa', 'tabu', 'greedy', 'csp'] as const;
 /** One round-trip: same Python `runner.py` as single runs, executed in parallel on the server. */
 export async function runAllSchedulers(
   nurses: Nurse[],
-  algorithmIds: readonly string[] = DEFAULT_COMPARE_ORDER
+  algorithmIds: readonly string[] = DEFAULT_COMPARE_ORDER,
+  signal?: AbortSignal
 ): Promise<{
   results: ScheduleResult[];
   errors?: { algorithm: string; message: string }[];
@@ -108,6 +131,7 @@ export async function runAllSchedulers(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ nurses, algorithms: [...algorithmIds] }),
+    signal,
   });
   const payload = await readJsonOrThrow(response);
   if (!response.ok) {

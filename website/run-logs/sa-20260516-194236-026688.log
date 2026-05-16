@@ -1,0 +1,13 @@
+[sa] starting iterations=1200
+  [SA] iter=   100  T= 90.8656  cur=   1366.40  best=   1223.57
+  [SA] iter=   200  T= 55.0437  cur=   1226.20  best=   1214.30
+  [SA] iter=   300  T= 33.3438  cur=   1119.65  best=   1082.57
+  [SA] iter=   400  T= 20.1987  cur=   1089.49  best=   1064.74
+  [SA] iter=   500  T= 12.2358  cur=   1117.39  best=   1064.74
+  [SA] iter=   600  T=  7.4121  cur=    992.79  best=    992.79
+  [SA] iter=   700  T=  4.4900  cur=    927.12  best=    927.12
+  [SA] iter=   800  T=  2.7199  cur=    863.04  best=    863.04
+  [SA] iter=   900  T=  1.6476  cur=    762.97  best=    762.97
+  [SA] iter=  1000  T=  0.9981  cur=    694.07  best=    694.07
+  [SA] iter=  1100  T=  0.6046  cur=    682.20  best=    681.79
+  [SA] iter=  1200  T=  0.3663  cur=    615.40  best=    615.40
