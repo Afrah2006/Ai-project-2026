@@ -404,7 +404,7 @@ export async function POST(request: Request) {
     const batchRuns = Number(body.batchRuns) || 0;
 
     try {
-      const wantsProgressStream = algorithm === 'tabu' && batchRuns === 0 && body.progressStream === true;
+      const wantsProgressStream = (algorithm === 'tabu' || algorithm === 'sa') && batchRuns === 0 && body.progressStream === true;
 
       if (wantsProgressStream) {
         return streamPythonAlgorithm(

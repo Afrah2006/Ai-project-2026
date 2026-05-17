@@ -149,9 +149,9 @@ export function ResultsSection() {
           transition={{ duration: 0.6, delay: 0.1 }}
           className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
         >
-          {results.map((result) => (
+          {results.map((result, idx) => (
             <Card
-              key={result.algorithm}
+              key={`${result.algorithm}-${idx}`}
               className={`bg-card border-2 cursor-pointer transition-all hover:scale-[1.02] ${
                 selectedResult?.algorithm === result.algorithm
                   ? "border-primary shadow-lg shadow-primary/20"
@@ -267,9 +267,9 @@ export function ResultsSection() {
                           domain={[0, 100]}
                           tick={{ fill: "var(--muted-foreground)", fontSize: 10 }}
                         />
-                        {results.map((result) => (
+                        {results.map((result, idx) => (
                           <Radar
-                            key={result.algorithm}
+                            key={`${result.algorithm}-${idx}`}
                             name={result.algorithm}
                             dataKey={result.algorithm}
                             stroke={algorithmColors[result.algorithm.replace(" (Modified)", "")] || "#666"}

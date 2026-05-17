@@ -125,14 +125,14 @@ def generate_tabu_schedule(schedule: Schedule, config: TabuConfig | None = None)
 	except InterruptedError:
 		pass
 
-	if not check_all_hard(best):
+	if check_all_hard(best):
 		repaired = _repair_to_feasible(best, rng, max(120, config.neighbors_per_iteration * 2))
 		if repaired is not None:
 			best = repaired
 		else:
- 			return schedule.copy()
+			return schedule.copy()
 
-	if not check_all_hard(best):
+	if check_all_hard(best):
 		return schedule.copy()
 
 	if _score(best) > _score(schedule):
@@ -171,7 +171,7 @@ def _best_neighbor(
 				if candidate is None:
 						continue
 
-				if not check_all_hard(candidate):
+				if check_all_hard(candidate):
 						continue
 
 				score = evaluate_schedule(candidate)

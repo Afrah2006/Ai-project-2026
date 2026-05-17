@@ -30,7 +30,7 @@ export default function RootLayout({
       className={`${manrope.variable} ${spaceGrotesk.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col bg-background">
+      <body className="min-h-full flex flex-col bg-background" suppressHydrationWarning>
         <ThemeProvider defaultTheme="system">{children}</ThemeProvider>
       </body>
     </html>

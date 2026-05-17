@@ -1,0 +1,5 @@
+[tabu] starting iterations=100 max_no_improve=200 neighbors=60 seed=1
+[tabu] iter=25 current=1681.49 best=1525.07 tabu=12
+[tabu] iter=50 current=1498.82 best=1498.82 tabu=12
+[tabu] iter=75 current=1392.95 best=1392.95 tabu=12
+[tabu] iter=100 current=1186.80 best=1186.80 tabu=12

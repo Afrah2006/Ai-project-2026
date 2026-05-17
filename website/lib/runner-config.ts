@@ -10,7 +10,8 @@ export const WEB_RUNNER_CONFIG = {
     seed: 1,
   },
   sa: {
-    iterations: 1200,
+    iterations: 3_000,
+    seed: 1,
   },
 } as const;
 

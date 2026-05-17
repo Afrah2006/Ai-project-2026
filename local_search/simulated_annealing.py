@@ -8,11 +8,11 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.evaluation import evaluate_schedule
+from core.evaluation import evaluate_schedule, evaluate_schedule_soft
 from core.generate_neighbours import generate_neighbours
-from core.hard_constraints import check_all_hard
+from core.hard_constraints import check_all_hard, is_valid_assignment, is_valid_swap_assignment
 from core.model import Schedule
-from core.config import NUM_DAYS
+from core.config import NUM_DAYS, COVERAGE
 
 
 # ---------------------------------------------------------------------------
@@ -77,30 +77,57 @@ def _accept_worse_move(delta: float, temperature: float) -> bool:
 
 
 def _random_same_day_swap(schedule: Schedule) -> Optional[Tuple[Schedule, Dict[str, Any]]]:
-    """Return a hard-feasible swap between two nurses on the same day."""
+    """Return a hard-feasible swap between two nurses on the same day.
+
+    Uses the fast is_valid_assignment() point-check instead of the expensive
+    check_all_hard() full-schedule scan.  A same-day swap preserves coverage
+    counts by definition, so we only need to verify per-nurse constraints
+    (transitions, streaks, hours) for the two affected nurses.
+    """
     day = random.randint(1, NUM_DAYS)
     nurses = list(schedule.nurses)
     random.shuffle(nurses)
 
     for idx, nurse_a in enumerate(nurses):
         for nurse_b in nurses[idx + 1:]:
-            shift_a = schedule.get(day, nurse_a.nurse_id)
-            shift_b = schedule.get(day, nurse_b.nurse_id)
+            nid_a = nurse_a.nurse_id
+            nid_b = nurse_b.nurse_id
+            shift_a = schedule.get(day, nid_a)
+            shift_b = schedule.get(day, nid_b)
             if shift_a == shift_b:
                 continue
 
-            candidate = schedule.copy()
-            candidate.set(day, nurse_a.nurse_id, shift_b)
-            candidate.set(day, nurse_b.nurse_id, shift_a)
-            if check_all_hard(candidate):
+            # Fast point-check: can nurse_a take shift_b?
+            if not is_valid_swap_assignment(schedule, day, nid_a, shift_b):
+                continue
+            # Simulate first half of swap for the second check
+            temp = schedule.copy()
+            temp.set(day, nid_a, shift_b)
+            if not is_valid_swap_assignment(temp, day, nid_b, shift_a):
+                continue
+            temp.set(day, nid_b, shift_a)
+
+            # Senior coverage guard — headcount is preserved by a swap but
+            # senior distribution can change (senior ↔ junior).
+            assignments = temp.get_day_assignments(day)
+            senior_ok = True
+            for sc, req in COVERAGE.items():
+                sr_count = sum(
+                    1 for nid, s in assignments.items()
+                    if s == sc and temp.nurse_by_id[nid].is_senior
+                )
+                if sr_count < req['min_senior']:
+                    senior_ok = False
+                    break
+            if not senior_ok:
                 continue
 
-            return candidate, {
+            return temp, {
                 "type": "same_day_swap",
                 "day": day,
-                "nurse_a": nurse_a.nurse_id,
+                "nurse_a": nid_a,
                 "shift_a": shift_a,
-                "nurse_b": nurse_b.nurse_id,
+                "nurse_b": nid_b,
                 "shift_b": shift_b,
             }
 
@@ -124,12 +151,16 @@ def _sample_best_candidate(
     best: Optional[Tuple[Schedule, float, Dict[str, Any]]] = None
     useful_count = 0
 
-    generated_samples = 1
-    neighbours = generate_neighbours(
-        current_schedule,
-        n_samples=generated_samples,
-        mode=neighbour_mode,
-    )
+    # Skip the expensive generate_neighbours() which loops over all nurses × days.
+    # Use only the fast _random_same_day_swap which picks one random day.
+    generated_samples = 0
+    neighbours: list = []
+    if generated_samples > 0:
+        neighbours = generate_neighbours(
+            current_schedule,
+            n_samples=generated_samples,
+            mode=neighbour_mode,
+        )
 
     for _ in range(max(0, samples - len(neighbours))):
         neighbour = _random_same_day_swap(current_schedule)
@@ -140,7 +171,7 @@ def _sample_best_candidate(
         if enforce_candidate_feasible and check_all_hard(candidate_schedule):
             continue
 
-        candidate_score = evaluate_schedule(candidate_schedule)
+        candidate_score = evaluate_schedule_soft(candidate_schedule)
         if abs(candidate_score - current_score) <= 1e-9:
             continue
 
@@ -157,7 +188,7 @@ def _sample_best_candidate(
         if enforce_candidate_feasible and check_all_hard(candidate_schedule):
             continue
 
-        candidate_score = evaluate_schedule(candidate_schedule)
+        candidate_score = evaluate_schedule_soft(candidate_schedule)
         if abs(candidate_score - current_score) <= 1e-9:
             continue
 
@@ -315,7 +346,7 @@ def simulated_annealing(
 
     # --- State ---
     current_schedule = initial_schedule.copy()
-    current_score    = evaluate_schedule(current_schedule)
+    current_score    = evaluate_schedule_soft(current_schedule)
 
     best_schedule  = current_schedule.copy()
     best_score     = current_score

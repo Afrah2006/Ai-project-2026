@@ -91,7 +91,7 @@ def tabu_max_no_improve(max_no_improve: int | None) -> int:
 
 
 def sa_iterations(iterations: int | None) -> int:
-    return 1200 if iterations is None else iterations
+    return 3000 if iterations is None else iterations
 
 
 def handle_request(body: dict[str, Any]) -> tuple[int, dict[str, Any]]:

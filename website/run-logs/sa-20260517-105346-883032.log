@@ -1,0 +1,31 @@
+[sa] starting iterations=3000
+  [SA] iter=   100  T=122.7850  cur=    794.24  best=    791.87
+  [SA] iter=   200  T=100.5077  cur=    590.37  best=    590.37
+  [SA] iter=   300  T= 82.2723  cur=    455.65  best=    455.65
+  [SA] iter=   400  T= 67.3454  cur=    405.14  best=    405.14
+  [SA] iter=   500  T= 55.1267  cur=    295.64  best=    282.89
+  [SA] iter=   600  T= 45.1249  cur=    244.15  best=    236.15
+  [SA] iter=   700  T= 36.9377  cur=      6.20  best=     -4.05
+  [SA] iter=   800  T= 30.2360  cur=    -51.46  best=    -57.30
+  [SA] iter=   900  T= 24.7502  cur=    -97.63  best=   -101.05
+  [SA] iter=  1000  T= 20.2597  cur=   -131.38  best=   -162.78
+  [SA] iter=  1100  T= 16.5839  cur=   -155.03  best=   -175.55
+  [SA] iter=  1200  T= 13.5750  cur=   -133.55  best=   -178.21
+  [SA] iter=  1300  T= 11.1121  cur=   -153.28  best=   -211.78
+  [SA] iter=  1400  T=  9.0960  cur=   -232.86  best=   -256.70
+  [SA] iter=  1500  T=  7.4457  cur=   -258.03  best=   -278.95
+  [SA] iter=  1600  T=  6.0948  cur=   -347.76  best=   -347.76
+  [SA] iter=  1700  T=  4.9890  cur=   -416.96  best=   -418.21
+  [SA] iter=  1800  T=  4.0838  cur=   -456.63  best=   -456.63
+  [SA] iter=  1900  T=  3.3429  cur=   -477.46  best=   -479.63
+  [SA] iter=  2000  T=  2.7364  cur=   -501.01  best=   -502.68
+  [SA] iter=  2100  T=  2.2399  cur=   -541.63  best=   -545.80
+  [SA] iter=  2200  T=  1.8335  cur=   -550.35  best=   -550.76
+  [SA] iter=  2300  T=  1.5008  cur=   -560.86  best=   -562.11
+  [SA] iter=  2400  T=  1.2285  cur=   -558.63  best=   -562.26
+  [SA] iter=  2500  T=  1.0056  cur=   -561.85  best=   -563.01
+  [SA] iter=  2600  T=  0.8232  cur=   -567.13  best=   -567.55
+  [SA] iter=  2700  T=  0.6738  cur=   -573.20  best=   -575.68
+  [SA] iter=  2800  T=  0.5516  cur=   -576.26  best=   -577.46
+  [SA] iter=  2900  T=  0.4515  cur=   -576.60  best=   -578.18
+  [SA] iter=  3000  T=  0.3696  cur=   -575.35  best=   -578.18

@@ -320,6 +320,56 @@ def is_valid_assignment(schedule: Schedule, day: int, nurse_id: int, shift: str)
     return True
 
 
+def is_valid_swap_assignment(schedule: Schedule, day: int, nurse_id: int, shift: str) -> bool:
+    """Like is_valid_assignment but skips the coverage check.
+
+    Use this for same-day swaps where two nurses exchange shifts on the
+    same day.  Coverage is preserved by definition (net-zero change per
+    shift type), so the expensive coverage check is unnecessary and would
+    incorrectly reject valid swaps (it only sees half the swap at a time).
+    """
+    current_shift = schedule.get(day, nurse_id)
+
+    # --- Transition checks ---
+    prev_shift = schedule.get(day - 1, nurse_id) if day > 1 else None
+    next_shift = schedule.get(day + 1, nurse_id) if day < NUM_DAYS else None
+
+    if prev_shift is not None and (prev_shift, shift) in FORBIDDEN_TRANSITIONS:
+        return False
+    if next_shift is not None and (shift, next_shift) in FORBIDDEN_TRANSITIONS:
+        return False
+
+    # --- Consecutive working days ---
+    if shift in WORKING_SHIFTS:
+        streak_before = _count_streak_before(schedule, day, nurse_id, WORKING_SHIFTS)
+        streak_after = _count_streak_after(schedule, day, nurse_id, WORKING_SHIFTS)
+        if streak_before + 1 + streak_after > HARD['max_consecutive_work_days']:
+            return False
+
+    # --- Consecutive rest days ---
+    if shift in NON_WORKING_SHIFTS:
+        streak_before = _count_streak_before(schedule, day, nurse_id, NON_WORKING_SHIFTS)
+        streak_after = _count_streak_after(schedule, day, nurse_id, NON_WORKING_SHIFTS)
+        if streak_before + 1 + streak_after > HARD['max_consecutive_rest_days']:
+            return False
+
+    # --- Consecutive night shifts ---
+    if shift == 'N':
+        streak_before = _count_streak_before(schedule, day, nurse_id, {'N'})
+        streak_after = _count_streak_after(schedule, day, nurse_id, {'N'})
+        if streak_before + 1 + streak_after > HARD['max_consecutive_night_shifts']:
+            return False
+
+    # --- Monthly hours ---
+    delta_hours = SHIFTS[shift]['hours'] - SHIFTS[current_shift]['hours']
+    new_total = schedule.total_hours(nurse_id) + delta_hours
+    if not (HARD['min_monthly_hours'] <= new_total <= HARD['max_monthly_hours']):
+        return False
+
+    # Coverage check intentionally SKIPPED — same-day swaps preserve it.
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------

@@ -12,16 +12,16 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Statistical / batch mode (--batch-runs > 0): fewer local-search iterations per run so
 # many repeats stay responsive. Single-run mode below is unchanged.
-BATCH_TABU_ITERATIONS = 600
-BATCH_TABU_MAX_NO_IMPROVE = 80
-BATCH_SA_MAX_ITERATIONS = 3200
+BATCH_TABU_ITERATIONS = 400
+BATCH_TABU_MAX_NO_IMPROVE = 60
+BATCH_SA_MAX_ITERATIONS = 800
 
 # Web UI defaults — mirror website/lib/runner-config.ts
 WEB_TABU_ITERATIONS = 10000
 WEB_TABU_NEIGHBORS_PER_ITERATION = 60
 WEB_TABU_MAX_NO_IMPROVE = 200
 WEB_TABU_LOG_EVERY = 25
-WEB_SA_ITERATIONS = 1200
+WEB_SA_ITERATIONS = 3000
 WEB_GENERATOR_MAX_BACKTRACK = 2000
 WEB_LOG_DIR = os.path.join(os.path.dirname(__file__), "run-logs")
 
@@ -187,6 +187,14 @@ def main():
                     base_sched,
                     max_iterations=batch_sa_iters,
                     seed=current_seed,
+                    initial_temperature=150.0,
+                    cooling_rate=0.998,
+                    min_temperature=0.01,
+                    reheat_enabled=True,
+                    reheat_patience=300,
+                    reheat_factor=0.25,
+                    max_reheats=8,
+                    candidates_per_iteration=5,
                     verbose=False,
                 )
                 algorithm_name = "Simulated Annealing"
@@ -196,7 +204,7 @@ def main():
             if final_sched:
                 hard_v = len(check_all_hard(final_sched))
                 penalty = evaluate_schedule(final_sched)
-                score = int(max(0, 1000 - hard_v * 50 - int(penalty / 10)))
+                score = int(round(penalty))
                 batch_results.append({
                     "score": score,
                     "execution_time": round((run_end - run_start) * 1000, 2),
@@ -271,6 +279,14 @@ def main():
                     base_sched,
                     max_iterations=iters,
                     seed=seed_to_use,
+                    initial_temperature=150.0,
+                    cooling_rate=0.998,
+                    min_temperature=0.01,
+                    reheat_enabled=True,
+                    reheat_patience=300,
+                    reheat_factor=0.25,
+                    max_reheats=8,
+                    candidates_per_iteration=5,
                     verbose=True,
                     log_every=100,
                     stream=False,

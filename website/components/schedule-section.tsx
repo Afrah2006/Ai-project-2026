@@ -551,9 +551,9 @@ export function ScheduleSection() {
           >
             {results.length > 1 && (
               <div className="flex flex-wrap gap-2 mb-4">
-                {results.map((result) => (
+                {results.map((result, idx) => (
                   <Button
-                    key={result.algorithm}
+                    key={`${result.algorithm}-${idx}`}
                     variant={selectedResult?.algorithm === result.algorithm ? "default" : "outline"}
                     onClick={() => setSelectedResult(result)}
                     className="text-sm font-medium"

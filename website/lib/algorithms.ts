@@ -65,6 +65,7 @@ export async function runSimulatedAnnealing(
       algorithm: "sa",
       nurses,
       iterations: WEB_RUNNER_CONFIG.sa.iterations,
+      seed: WEB_RUNNER_CONFIG.sa.seed,
     },
     "Simulated Annealing",
     signal
@@ -167,7 +168,7 @@ export async function runFullBatchAnalysis(
     response = await fetch(apiUrl("/api/run-algorithm"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nurses, batchAnalysis: true, batchRuns }),
+      body: JSON.stringify({ nurses, batchAnalysis: true, batchRuns, seed: 1 }),
     });
   } catch (err) {
     const hint =
