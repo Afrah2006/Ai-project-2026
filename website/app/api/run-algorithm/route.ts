@@ -32,7 +32,7 @@ function saIterations(iterations: number | undefined): number | undefined {
 }
 
 /** Long Tabu/SA runs can exceed 15+ minutes; allow up to 1h on Node/Docker (Vercel caps lower). */
-export const maxDuration = 3600;
+export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
 const PYTHON_ARGS = {
