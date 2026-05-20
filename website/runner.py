@@ -83,7 +83,13 @@ def format_result(algorithm_name, schedule, execution_time):
 
 
 def ensure_log_dir() -> None:
-    os.makedirs(WEB_LOG_DIR, exist_ok=True)
+    global WEB_LOG_DIR
+    try:
+        os.makedirs(WEB_LOG_DIR, exist_ok=True)
+    except OSError:
+        import tempfile
+        WEB_LOG_DIR = os.path.join(tempfile.gettempdir(), "run-logs")
+        os.makedirs(WEB_LOG_DIR, exist_ok=True)
 
 
 def create_run_log_file(algorithm: str) -> str:
