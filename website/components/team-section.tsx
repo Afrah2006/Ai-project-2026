@@ -23,7 +23,7 @@ const teamMembers = [
   },
   {
     name: "Mohamed Iskander Grabelsi",
-    contributions: ["Evaluation Metrics", "Tabu Search Implementation"],
+    contributions: ["Evaluation Metrics", "Tabu Search Implementation","Website Development"],
     initials: "MG",
     icon: FlaskConical,
     gradient: "from-purple-500 to-pink-500",

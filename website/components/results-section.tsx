@@ -454,7 +454,7 @@ export function ResultsSection() {
                   </CardHeader>
                   <CardContent>
                     <div className="h-[200px]">
-                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
+                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
                         <BarChart data={comparisonData} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                           <XAxis
