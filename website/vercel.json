@@ -2,7 +2,7 @@
   "framework": "nextjs",
   "functions": {
     "api/py/run-algorithm.py": {
-      "maxDuration": 800,
+      "maxDuration": 300,
       "memory": 3008,
       "includeFiles": "runner.py ../core/** ../local_search/** ../utils/**"
     }
