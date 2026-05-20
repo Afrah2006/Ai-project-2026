@@ -4,7 +4,7 @@
     "api/py/run-algorithm.py": {
       "maxDuration": 300,
       "memory": 2048,
-      "includeFiles": "runner.py ../core/** ../local_search/** ../utils/**"
+      "includeFiles": "runner.py core/** local_search/** utils/**"
     }
   }
 }

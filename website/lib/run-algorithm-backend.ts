@@ -33,7 +33,11 @@ export function parseJsonFromStdout(stdout: string): unknown {
   throw new Error("No valid JSON line found in stdout");
 }
 
-function vercelPythonUrl(): string {
+function vercelPythonUrl(host: string | null): string {
+  if (host) {
+    const protocol = host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https";
+    return `${protocol}://${host}/api/py/run-algorithm`;
+  }
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}/api/py/run-algorithm`;
   }
@@ -43,9 +47,10 @@ function vercelPythonUrl(): string {
 /** On Vercel, algorithms run in the Python serverless function. */
 export async function forwardToVercelPython(
   body: AlgorithmRunBody,
+  host: string | null,
   signal?: AbortSignal
 ): Promise<Response> {
-  const response = await fetch(vercelPythonUrl(), {
+  const response = await fetch(vercelPythonUrl(host), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

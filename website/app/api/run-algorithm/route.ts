@@ -245,7 +245,8 @@ export async function POST(request: Request) {
     }
 
     if (process.env.VERCEL) {
-      return forwardToVercelPython(body, request.signal);
+      const host = request.headers.get('host');
+      return forwardToVercelPython(body, host, request.signal);
     }
 
     const tempDir = os.tmpdir();

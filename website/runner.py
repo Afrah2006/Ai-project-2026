@@ -7,8 +7,9 @@ from contextlib import redirect_stdout
 from io import StringIO
 from datetime import datetime
 
-# Add parent directory to sys.path so we can import from core and local_search
+# Add parent directory and current directory to sys.path so we can import from core and local_search
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 # Statistical / batch mode (--batch-runs > 0): fewer local-search iterations per run so
 # many repeats stay responsive. Single-run mode below is unchanged.
